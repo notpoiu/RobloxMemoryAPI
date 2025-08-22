@@ -1,8 +1,13 @@
 from robloxmemoryapi import RobloxGameClient
 
+# Create a client instance
 client = RobloxGameClient()
+# client = RobloxGameClient(pid=2398) # PID is also possible
+
+# Get the client's data model
 game = client.DataModel
 
+# Print some info about the game
 print("RobloxMemoryAPI Demo:")
 print("A External Roblox Memory Reader")
 print("==============================")
