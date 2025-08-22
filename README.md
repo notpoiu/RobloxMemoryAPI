@@ -1,4 +1,4 @@
-# RobloxAPI
+# RobloxMemoryAPI
 
 A Python library for interacting with the roblox game client.
 
@@ -9,8 +9,8 @@ Made by [upio](https://github.com/notpoiu), [mstudio45](https://github.com/mstud
 Clone the repository and install the required dependencies:
 
 ```bash
-git clone https://github.com/notpoiu/RobloxAPI.git
-cd RobloxAPI
+git clone https://github.com/notpoiu/RobloxMemoryAPI.git
+cd RobloxMemoryAPI
 pip install -r requirements.txt
 ```
 
@@ -19,7 +19,7 @@ pip install -r requirements.txt
 Import the library and create a client instance:
 
 ```python
-from robloxapi import RobloxGameClient
+from robloxmemoryapi import RobloxGameClient
 
 client = RobloxGameClient()
 ```

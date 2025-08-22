@@ -1,4 +1,4 @@
-from robloxapi import RobloxGameClient
+from robloxmemoryapi import RobloxGameClient
 
 client = RobloxGameClient()
 game = client.DataModel
