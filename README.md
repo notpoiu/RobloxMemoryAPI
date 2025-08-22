@@ -9,7 +9,7 @@ Made by [upio](https://github.com/notpoiu), [mstudio45](https://github.com/mstud
 Clone the repository and install the required dependencies:
 
 ```bash
-git clone https://github.com/upio/RobloxAPI.git
+git clone https://github.com/notpoiu/RobloxAPI.git
 cd RobloxAPI
 pip install -r requirements.txt
 ```
