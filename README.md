@@ -1,8 +1,8 @@
 # RobloxMemoryAPI
 
-A Python library for interacting with the roblox game client.
+A Python library that is _hopefully stealthy_ and abstracts reading datamodel information from the roblox game client externally.
 
-Made by [upio](https://github.com/notpoiu), [mstudio45](https://github.com/mstudio45), and [master oogway](https://github.com/ActualMasterOogway) and used in the [Dig Macro external mode](https://github.com/mstudio45/digmacro).
+This was made by [upio](https://github.com/notpoiu), [mstudio45](https://github.com/mstudio45), and [Master Oogway](https://github.com/ActualMasterOogway) and created for the [Dig Macro](https://github.com/mstudio45/digmacro) project (external mode and not the computer vision mode).
 
 ## Installation
 
