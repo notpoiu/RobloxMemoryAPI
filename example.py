@@ -3,7 +3,7 @@ from robloxmemoryapi import RobloxGameClient
 client = RobloxGameClient()
 game = client.DataModel
 
-print("RobloxAPI Demo:")
+print("RobloxMemoryAPI Demo:")
 print("A External Roblox Memory Reader")
 print("==============================")
 print("PlaceID:", game.PlaceId)
