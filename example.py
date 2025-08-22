@@ -7,6 +7,10 @@ client = RobloxGameClient()
 # Get the client's data model
 game = client.DataModel
 
+if game.failed:
+    print("Failed to get data model")
+    exit()
+
 # Print some info about the game
 print("RobloxMemoryAPI Demo:")
 print("A External Roblox Memory Reader")
