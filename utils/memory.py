@@ -234,14 +234,14 @@ class EvasiveProcess:
             for i in range(amount):
                 start_range = i * 4
                 float_bytes = bulk_float_bytes[start_range:start_range + 4]
+                
                 if len(float_bytes) == 4:
-                    floats.append(struct.unpack('<f', float_bytes)[0])
+                    floats.append(struct.unpack('f', float_bytes)[0])
                 else:
                     floats.append(0.0)
 
             return floats
         except (OSError, struct.error) as e:
-            print(e)
             return [0.0]
 
     # bool #
@@ -249,7 +249,6 @@ class EvasiveProcess:
         try:
             bool_byte = self.read(address, 1)
             if not bool_byte: return False
-            print(int.from_bytes(bool_byte, 'little'), bool_byte)
             return bool(int.from_bytes(bool_byte, 'little'))
         except OSError:
             return False

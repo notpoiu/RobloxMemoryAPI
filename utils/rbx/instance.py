@@ -45,9 +45,15 @@ class RBXInstance:
         return self.memory_module.read_string(class_name_address)
 
     @property
+    def primitive_address(self):
+        part_primitive_pointer = self.raw_address + Offsets["Primitive"]
+        part_primitive = int.from_bytes(self.memory_module.read(part_primitive_pointer, 8), 'little')
+        return part_primitive
+
+    @property
     def Position(self):
         if "part" in self.ClassName.lower():
-            position_vector3 = self.memory_module.read_floats(self.raw_address + Offsets["Position"], 3)
+            position_vector3 = self.memory_module.read_floats(self.primitive_address + Offsets["Position"], 3)
             return Vector3(*position_vector3)
         else:
             try:
@@ -65,7 +71,7 @@ class RBXInstance:
     @property
     def Size(self):
         if "part" in self.ClassName.lower():
-            size_vector3 = self.memory_module.read_floats(self.raw_address + Offsets["PartSize"], 3)
+            size_vector3 = self.memory_module.read_floats(self.primitive_address + Offsets["PartSize"], 3)
             return Vector3(*size_vector3)
         else:
             try:
@@ -234,6 +240,11 @@ class DataModel(ServiceBase):
                 return instance
 
         return None
+
+    # Stuff
+    def IsLoaded(self):
+        return self.memory_module.read_bool(self.raw_address + Offsets["GameLoaded"])
+
 
 class PlayerClass(RBXInstance):
     def __init__(self, memory_module, player: RBXInstance):
