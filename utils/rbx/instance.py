@@ -158,6 +158,11 @@ class RBXInstance:
             descendants.extend(child.GetDescendants())
         return descendants
 
+    def FindFirstChildOfClass(self, classname):
+        for child in self.GetChildren():
+            if child.ClassName == classname:
+                return child
+        return None
 
     def FindFirstChild(self, name, recursive=False):
         try:
@@ -217,6 +222,7 @@ class DataModel(ServiceBase):
             datamodel_addr = int.from_bytes(memory_module.read(datamodel_addr_ptr, 8), 'little')
 
             datamodel_instance = RBXInstance(datamodel_addr, memory_module)
+
             if datamodel_instance.Name != "Ugc":
                 self.failed = True
             else:
