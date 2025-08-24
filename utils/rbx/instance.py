@@ -13,6 +13,13 @@ class RBXInstance:
     def __getattr__(self, key):
         return self.FindFirstChild(key)
 
+    # utilities #
+    @property
+    def primitive_address(self):
+        part_primitive_pointer = self.raw_address + Offsets["Primitive"]
+        part_primitive = int.from_bytes(self.memory_module.read(part_primitive_pointer, 8), 'little')
+        return part_primitive
+
     # props #
     @property
     def Parent(self):
@@ -43,13 +50,7 @@ class RBXInstance:
             'little'
         )
         return self.memory_module.read_string(class_name_address)
-
-    @property
-    def primitive_address(self):
-        part_primitive_pointer = self.raw_address + Offsets["Primitive"]
-        part_primitive = int.from_bytes(self.memory_module.read(part_primitive_pointer, 8), 'little')
-        return part_primitive
-
+    
     @property
     def Position(self):
         if "part" in self.ClassName.lower():
@@ -94,6 +95,15 @@ class RBXInstance:
         
         elif classname == "NumberValue":
             return self.memory_module.read_double(self.raw_address + Offsets["Value"])
+        
+        elif classname == "BoolValue":
+            return self.memory_module.read_bool(self.raw_address + Offsets["Value"])
+        
+        elif classname == "ObjectValue":
+            object_pointer = self.raw_address + Offsets["Value"]
+            object_address = int.from_bytes(self.memory_module.read(object_pointer, 8), 'little')
+
+            return RBXInstance(object_address, self.memory_module)
         
         return None
     
