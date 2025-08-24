@@ -1,37 +1,30 @@
-import requests
+from ..offsets import *
 import time
-import json
-
-OffsetsRequest = requests.get("https://offsets.ntgetwritewatch.workers.dev/offsets.json")
-Offsets = OffsetsRequest.json()
-
-for key in Offsets:
-    try:
-        Offsets[key] = int(Offsets[key], 16)
-    except (ValueError, TypeError):
-        pass
-
-with open("data/offsets.json", "r") as f:
-    LoadedOffsets = json.load(f)
-    f.close()
-
-for key in LoadedOffsets:
-    Offsets[key] = int(LoadedOffsets[key], 16)
+from utils.rbx.datastructures import *
 
 class RBXInstance:
     def __init__(self, address, memory_module):
         self.raw_address = address
         self.memory_module = memory_module
 
-    # props #
-    @property
-    def parent_address(self):
-        return self.raw_address + Offsets["Parent"]
+    def __eq__(self, value):
+        return value.raw_address == self.raw_address
+    
+    def __getattr__(self, key):
+        return self.FindFirstChild(key)
 
+    # props #
     @property
     def Parent(self):
         parent_pointer = int.from_bytes(self.memory_module.read(self.raw_address + Offsets["Parent"], 8), 'little')
-        return RBXInstance(parent_pointer, self.memory_module)
+        instance = RBXInstance(parent_pointer, self.memory_module)
+
+        try:
+            thing = instance.ClassName
+        except Exception as e:
+            return None
+
+        return instance
     
     @property
     def Name(self):
@@ -51,39 +44,37 @@ class RBXInstance:
         )
         return self.memory_module.read_string(class_name_address)
 
-    # frame properties #
     @property
     def Position(self):
-        try:
-            x = self.memory_module.read_float(self.raw_address + Offsets["FramePositionX"])
-            x_offset = self.memory_module.read_int(self.raw_address + Offsets["FramePositionOffsetX "])
+        if "part" in self.ClassName.lower():
+            position_vector3 = self.memory_module.read_floats(self.raw_address + Offsets["Position"], 3)
+            return Vector3(*position_vector3)
+        else:
+            try:
+                x = self.memory_module.read_float(self.raw_address + Offsets["FramePositionX"])
+                x_offset = self.memory_module.read_int(self.raw_address + Offsets["FramePositionOffsetX "])
 
-            y = self.memory_module.read_float(self.raw_address + Offsets["FramePositionY"])
-            y_offset = self.memory_module.read_int(self.raw_address + Offsets["FramePositionOffsetY"])
+                y = self.memory_module.read_float(self.raw_address + Offsets["FramePositionY"])
+                y_offset = self.memory_module.read_int(self.raw_address + Offsets["FramePositionOffsetY"])
 
-            return (x, x_offset, y, y_offset)
-        except (KeyError, OSError) as e:
-            print(f"Error reading position: {e}")
-            return (0.0, 0, 0.0, 0)
+                return UDim2(x, x_offset, y, y_offset)
+            except (KeyError, OSError) as e:
+                print(f"Error reading position: {e}")
+                return (0.0, 0, 0.0, 0)
 
     @property
     def Size(self):
-        try:
-            x = self.memory_module.read_float(self.raw_address + Offsets["FrameSizeX"])
-            y = self.memory_module.read_float(self.raw_address + Offsets["FrameSizeY"])
-            return (x, y)
-        except (KeyError, OSError) as e:
-            print(f"Error reading position: {e}")
-            return (0.0, 0.0)
-
-    """@property
-    def ScreenPosition(self):
-        udim2_x_scale, udim2_y_scale, udim2_x_offset, udim2_y_offset = self.Position
-        
-        real_x = (udim2_x_scale * SCREEN_WIDTH) + udim2_x_offset
-        real_y = (udim2_y_scale * SCREEN_HEIGHT) + udim2_y_offset
-
-        return (real_x, real_y)"""
+        if "part" in self.ClassName.lower():
+            size_vector3 = self.memory_module.read_floats(self.raw_address + Offsets["PartSize"], 3)
+            return Vector3(*size_vector3)
+        else:
+            try:
+                x = self.memory_module.read_float(self.raw_address + Offsets["FrameSizeX"])
+                y = self.memory_module.read_float(self.raw_address + Offsets["FrameSizeY"])
+                return (x, y)
+            except (KeyError, OSError) as e:
+                print(f"Error reading position: {e}")
+                return (0.0, 0.0)
 
     # XXXXValue props #
     @property
@@ -103,8 +94,7 @@ class RBXInstance:
     # text props #
     @property
     def Text(self):
-        classname = self.ClassName 
-        if classname == "TextLabel":
+        if "text" in self.ClassName.lower():
             return self.memory_module.read_string(self.raw_address + Offsets["Text"])
         
         return None
@@ -128,6 +118,30 @@ class RBXInstance:
                 children.append(RBXInstance(child_pointer, self.memory_module))
         
         return children
+
+    def GetFullName(self):
+        if self.ClassName == "DataModel":
+            return self.Name
+
+        ObjectPointer = self
+        ObjectPath = self.Name
+
+        while True:
+            if ObjectPointer.Parent.ClassName == "DataModel":
+                break
+            
+            ObjectPointer = ObjectPointer.Parent
+            ObjectPath = f"{ObjectPointer.Name}." + ObjectPath
+        
+        return ObjectPath
+
+    def GetDescendants(self):
+        descendants = []
+        for child in self.GetChildren():
+            descendants.append(child)
+            descendants.extend(child.GetDescendants())
+        return descendants
+
 
     def FindFirstChild(self, name, recursive=False):
         try:

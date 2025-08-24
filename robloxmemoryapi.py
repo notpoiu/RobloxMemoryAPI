@@ -1,5 +1,5 @@
 from utils.memory import EvasiveProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ, get_pid_by_name
-from utils.rbxinstance import DataModel
+from utils.rbx.instance import DataModel
 import platform
 
 if platform.system() != "Windows":
