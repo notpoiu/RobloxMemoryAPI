@@ -55,6 +55,15 @@ class CFrame:
             f"Right={self.RightVector}, Up={self.UpVector}, Look={self.LookVector})"
         )
 
+    def __eq__(self, value):
+        return (
+            isinstance(value, CFrame)
+            and self.Position == value.Position
+            and self.RightVector == value.RightVector
+            and self.UpVector == value.UpVector
+            and self.LookVector == value.LookVector
+        )
+
     @classmethod
     def new(cls, x=0, y=0, z=0):
         return cls(position=Vector3(x, y, z))
