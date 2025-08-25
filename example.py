@@ -1,15 +1,26 @@
-from robloxmemoryapi import RobloxGameClient
+from robloxmemoryapi import RobloxGameClient, RobloxRandom
+import platform
+
+## Random Class ##
+Test = RobloxRandom(5)
+print("Roblox Random Demo")
+print("math.random() with seed '5' result:", Test.NextNumber())
+
+## Memory Reading ###
+if platform.system() != "Windows":
+    print("Sorry! The memory reading module only works in windows, trying to access it will cause client.failed = True")
+    exit()
 
 # Create a client instance
 client = RobloxGameClient()
 # client = RobloxGameClient(pid=2398) # PID is also possible
 
-# Get the client's data model
-game = client.DataModel
-
-if game.failed:
+if client.failed:
     print("Failed to get data model")
     exit()
+
+# Get the client's data model
+game = client.DataModel
 
 LocalPlayer = game.Players.LocalPlayer
 
@@ -27,3 +38,4 @@ print("Player Character Parent:", LocalPlayer.Character.HumanoidRootPart.GetFull
 print("Player Count:", len(game.Players.GetPlayers()))
 print("==============================")
 print("CurrentCamera CFrame:", game.Workspace.CurrentCamera.CFrame)
+
