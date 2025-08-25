@@ -16,6 +16,8 @@ pip install -r requirements.txt
 
 ## Usage
 
+An example script can be found in [example.py](example.py)
+
 Import the library and create a client instance:
 
 ```python
