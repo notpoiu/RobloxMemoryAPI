@@ -26,7 +26,5 @@ print("Player Name:", LocalPlayer.Name)
 print("Player Character Parent:", LocalPlayer.Character.HumanoidRootPart.GetFullName())
 print("Player Count:", len(game.Players.GetPlayers()))
 print("==============================")
-
-# 1.0511624813079834, 2.9980251789093018, -1.8010846376419067
-print("Player Position:", LocalPlayer.Character.HumanoidRootPart.Position)
-print("Player HRP Size:", LocalPlayer.Character.HumanoidRootPart.Size)
+print(f"CurrentCamera Position: {game.Workspace.CurrentCamera.Position}")
+print(f"CurrentCamera CFrame: {game.Workspace.CurrentCamera.CFrame}")

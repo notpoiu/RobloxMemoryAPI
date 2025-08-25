@@ -52,9 +52,42 @@ class RBXInstance:
         return self.memory_module.read_string(class_name_address)
     
     @property
+    def CFrame(self):
+        className = self.ClassName
+
+        RotationMatriciesLength = 3 * 3
+
+        if "part" in className.lower():
+            # extra 3 for position matrix
+            CFrameData = self.memory_module.read_floats(self.primitive_address + Offsets["CFrame"], RotationMatriciesLength + 3)
+        elif className == "Camera":
+            # * 4 because 1 float is 4 bytes
+            CameraCFrameOffset = Offsets["CameraPos"] - RotationMatriciesLength * 4
+            CFrameData = self.memory_module.read_floats(self.raw_address + CameraCFrameOffset, RotationMatriciesLength + 3)
+        else:
+            return None
+        
+        RightVectorData = CFrameData[0:3]
+        UpVectorData = CFrameData[3:6]
+        LookVectorData = CFrameData[6:9]
+        PositionData = CFrameData[9:12]
+
+        return CFrame(
+            Vector3(*RightVectorData),
+            Vector3(*UpVectorData),
+            Vector3(*LookVectorData),
+            Vector3(*PositionData)
+        )
+
+
+    @property
     def Position(self):
-        if "part" in self.ClassName.lower():
+        className = self.ClassName
+        if "part" in className.lower():
             position_vector3 = self.memory_module.read_floats(self.primitive_address + Offsets["Position"], 3)
+            return Vector3(*position_vector3)
+        elif className == "Camera":
+            position_vector3 = self.memory_module.read_floats(self.raw_address + Offsets["CameraPos"], 3)
             return Vector3(*position_vector3)
         else:
             try:
@@ -204,7 +237,7 @@ class ServiceBase:
         if self.instance is not None:
             return getattr(self.instance, name)
         
-        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+        return self.instance.FindFirstChild(name)
 
 class DataModel(ServiceBase):
     def __init__(self, memory_module):
@@ -246,6 +279,10 @@ class DataModel(ServiceBase):
     @property
     def Players(self):
         return PlayersService(self.memory_module, self)
+
+    @property
+    def Workspace(self):
+        return WorkspaceService(self.memory_module, self)
 
     # class functions #
     def GetService(self, name):
@@ -302,6 +339,37 @@ class PlayersService(ServiceBase):
 
         addr = int.from_bytes(self.memory_module.read(self.instance.raw_address + Offsets["LocalPlayer"], 8), 'little')
         return PlayerClass(self.memory_module, RBXInstance(addr, self.memory_module))
+
+    def GetPlayers(self):
+        players = []
+
+        for instance in self.instance.GetChildren():
+            if instance.ClassName == "Player":
+                players.append(PlayerClass(self.memory_module, instance))
+        
+        return players
+
+class WorkspaceService(ServiceBase):
+    def __init__(self, memory_module, game: DataModel):
+        super().__init__()
+        self.memory_module = memory_module
+
+        try:
+            workspace_instance: RBXInstance = game.GetService("Workspace")
+            if workspace_instance.ClassName != "Workspace":
+                self.failed = True
+            else:
+                self.instance = workspace_instance
+        except (KeyError, OSError):
+            self.failed = True
+
+    # props #
+    @property
+    def CurrentCamera(self) -> RBXInstance | None:
+        if self.failed: return
+
+        addr = int.from_bytes(self.memory_module.read(self.instance.raw_address + Offsets["Camera"], 8), 'little')
+        return RBXInstance(addr, self.memory_module)
 
     def GetPlayers(self):
         players = []
