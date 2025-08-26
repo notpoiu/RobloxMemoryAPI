@@ -26,7 +26,7 @@ LocalPlayer = game.Players.LocalPlayer
 
 # Print some info about the game
 print("RobloxMemoryAPI Demo:")
-print("A External Roblox Memory Reader")
+print("An External Roblox Memory Reader")
 print("==============================")
 print("PlaceID:", game.PlaceId)
 print("GameID:", game.GameId)
