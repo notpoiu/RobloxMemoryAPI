@@ -151,6 +151,20 @@ class RBXInstance:
 
     # humanoid props #
     @property
+    def WalkSpeed(self):
+        if self.ClassName != "Humanoid":
+            return None
+        
+        return self.memory_module.read_float(self.raw_address + Offsets["WalkSpeed"])
+
+    @property
+    def JumpPower(self):
+        if self.ClassName != "Humanoid":
+            return None
+        
+        return self.memory_module.read_float(self.raw_address + Offsets["JumpPower"])
+        
+    @property
     def Health(self):
         if self.ClassName != "Humanoid":
             return None
