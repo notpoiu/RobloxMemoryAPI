@@ -223,7 +223,7 @@ class EvasiveProcess:
     def read_float(self, address: int) -> float:
         try:
             float_bytes = self.read(address, 4)
-            return struct.unpack('<f', float_bytes)[0] if len(float_bytes) == 4 else 0.0
+            return struct.unpack('f', float_bytes)[0] if len(float_bytes) == 4 else 0.0
         except (OSError, struct.error):
             return 0.0
     

@@ -4,7 +4,7 @@ class UDim:
         self.Offset = int(offset)
 
     def __repr__(self):
-        return f"UDim(Scale={self.Scale}, Offset={self.Offset})"
+        return f"{{{self.Scale}, {self.Offset}}}"
 
 
 class UDim2:
@@ -13,7 +13,7 @@ class UDim2:
         self.Y = UDim(scaleY, offsetY)
 
     def __repr__(self):
-        return f"UDim2({self.X.Scale}, {self.X.Offset}, {self.Y.Scale}, {self.Y.Offset})"
+        return f"{{{self.X.Scale}, {self.X.Offset}}}, {{{self.Y.Scale}, {self.Y.Offset}}}"
 
     @classmethod
     def fromScale(cls, scaleX, scaleY):
@@ -23,6 +23,21 @@ class UDim2:
     def fromOffset(cls, offsetX, offsetY):
         return cls(0, offsetX, 0, offsetY)
 
+class Vector2:
+    def __init__(self, x=0, y=0):
+        self.X = float(x)
+        self.Y = float(y)
+
+    def __repr__(self):
+        return f"{self.X}, {self.Y}"
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, Vector2)
+            and self.X == other.X
+            and self.Y == other.Y
+        )
+
 
 class Vector3:
     def __init__(self, x=0, y=0, z=0):
@@ -31,7 +46,7 @@ class Vector3:
         self.Z = float(z)
 
     def __repr__(self):
-        return f"Vector3({self.X}, {self.Y}, {self.Z})"
+        return f"{self.X}, {self.Y}, {self.Z}"
 
     def __eq__(self, other):
         return (
@@ -51,8 +66,7 @@ class CFrame:
 
     def __repr__(self):
         return (
-            f"CFrame(Position={self.Position}, "
-            f"Right={self.RightVector}, Up={self.UpVector}, Look={self.LookVector})"
+            f"{self.Position}, {self.RightVector}, {self.UpVector}, {self.LookVector}"
         )
 
     def __eq__(self, value):

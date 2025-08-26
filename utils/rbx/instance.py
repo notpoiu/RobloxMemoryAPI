@@ -2,6 +2,7 @@ from ..offsets import *
 import time
 from utils.rbx.datastructures import *
 
+# Normal Classes #
 class RBXInstance:
     def __init__(self, address, memory_module):
         self.raw_address = address
@@ -147,6 +148,37 @@ class RBXInstance:
             return self.memory_module.read_string(self.raw_address + Offsets["Text"])
         
         return None
+
+    # humanoid props #
+    @property
+    def Health(self):
+        if self.ClassName != "Humanoid":
+            return None
+        
+        return self.memory_module.read_float(self.raw_address + Offsets["Health"])
+
+    @property
+    def MaxHealth(self):
+        if self.ClassName != "Humanoid":
+            return None
+        
+        return self.memory_module.read_float(self.raw_address + Offsets["MaxHealth"])
+
+    # model props #
+    @property
+    def PrimaryPart(self):
+        if self.ClassName != "Model":
+            return None
+        
+        parent_pointer = int.from_bytes(self.memory_module.read(self.raw_address + Offsets["PrimaryPart"], 8), 'little')
+        instance = RBXInstance(parent_pointer, self.memory_module)
+
+        try:
+            thing = instance.ClassName
+        except Exception as e:
+            return None
+
+        return instance
     
     # functions #
     def GetChildren(self):
@@ -224,7 +256,57 @@ class RBXInstance:
             time.sleep(0.1)
 
         return child
+
+class PlayerClass(RBXInstance):
+    def __init__(self, memory_module, player: RBXInstance):
+        super().__init__(player.raw_address, memory_module)
+        self.memory_module = memory_module
+
+        try:
+            if player.ClassName != "Player":
+                self.failed = True
+            else:
+                self.instance = player
+        except (KeyError, OSError):
+            self.failed = True
+
+    # props #
+    @property
+    def Character(self) -> RBXInstance | None:
+        addr = int.from_bytes(self.memory_module.read(self.instance.raw_address + Offsets["Character"], 8), 'little')
+        return RBXInstance(addr, self.memory_module)
     
+    @property
+    def DisplayName(self):
+        return self.memory_module.read_string(self.raw_address + Offsets["DisplayName"])
+
+    @property
+    def UserId(self):
+        return self.memory_module.read_long(self.raw_address + Offsets["UserId"])
+
+class CameraClass(RBXInstance):
+    def __init__(self, memory_module, camera: RBXInstance):
+        super().__init__(camera.raw_address, memory_module)
+        self.memory_module = memory_module
+
+        try:
+            if camera.ClassName != "Camera":
+                self.failed = True
+            else:
+                self.instance = camera
+        except (KeyError, OSError):
+            self.failed = True
+
+    # props #
+    @property
+    def FieldOfView(self):
+        return self.memory_module.read_float(self.raw_address + Offsets["FOV"])
+    
+    @property
+    def ViewportSize(self):
+        SizeData = self.memory_module.read_floats(self.raw_address + Offsets["ViewportSize"], 2)
+        return Vector2(*SizeData)
+
 # Service #
 class ServiceBase:
     def __init__(self):
@@ -298,26 +380,6 @@ class DataModel(ServiceBase):
     def IsLoaded(self):
         return self.memory_module.read_bool(self.raw_address + Offsets["GameLoaded"])
 
-
-class PlayerClass(RBXInstance):
-    def __init__(self, memory_module, player: RBXInstance):
-        super().__init__(player.raw_address, memory_module)
-        self.memory_module = memory_module
-
-        try:
-            if player.ClassName != "Player":
-                self.failed = True
-            else:
-                self.instance = player
-        except (KeyError, OSError):
-            self.failed = True
-
-    # props #
-    @property
-    def Character(self) -> RBXInstance | None:
-        addr = int.from_bytes(self.memory_module.read(self.instance.raw_address + Offsets["Character"], 8), 'little')
-        return RBXInstance(addr, self.memory_module)
-
 class PlayersService(ServiceBase):
     def __init__(self, memory_module, game: DataModel):
         super().__init__()
@@ -365,11 +427,11 @@ class WorkspaceService(ServiceBase):
 
     # props #
     @property
-    def CurrentCamera(self) -> RBXInstance | None:
+    def CurrentCamera(self) -> CameraClass | None:
         if self.failed: return
 
         addr = int.from_bytes(self.memory_module.read(self.instance.raw_address + Offsets["Camera"], 8), 'little')
-        return RBXInstance(addr, self.memory_module)
+        return CameraClass(self.memory_module, RBXInstance(addr, self.memory_module))
 
     def GetPlayers(self):
         players = []
