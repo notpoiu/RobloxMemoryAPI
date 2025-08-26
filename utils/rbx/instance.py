@@ -74,10 +74,10 @@ class RBXInstance:
         PositionData = CFrameData[9:12]
 
         return CFrame(
+            Vector3(*PositionData),
             Vector3(*RightVectorData),
             Vector3(*UpVectorData),
-            Vector3(*LookVectorData),
-            Vector3(*PositionData)
+            Vector3(*LookVectorData)
         )
 
 
