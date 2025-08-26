@@ -6,7 +6,6 @@ class UDim:
     def __repr__(self):
         return f"{{{self.Scale}, {self.Offset}}}"
 
-
 class UDim2:
     def __init__(self, scaleX=0, offsetX=0, scaleY=0, offsetY=0):
         self.X = UDim(scaleX, offsetX)
@@ -55,6 +54,18 @@ class Vector3:
             and self.Y == other.Y
             and self.Z == other.Z
         )
+    
+    def __add__(self, other):
+        return Vector3(self.X + other.X, self.Y + other.Y, self.Z + other.Z)
+
+    def __sub__(self, other):
+        return Vector3(self.X - other.X, self.Y - other.Y, self.Z - other.Z)
+
+    def __mul__(self, other):
+        return Vector3(self.X * other.X, self.Y * other.Y, self.Z * other.Z)
+
+    def __truediv__(self, other):
+        return Vector3(self.X / other.X, self.Y / other.Y, self.Z / other.Z)
 
 
 class CFrame:
@@ -81,3 +92,35 @@ class CFrame:
     @classmethod
     def new(cls, x=0, y=0, z=0):
         return cls(position=Vector3(x, y, z))
+    
+    def __add__(self, other):
+        return CFrame(
+            self.Position + other.Position,
+            self.RightVector + other.RightVector,
+            self.UpVector + other.UpVector,
+            self.LookVector + other.LookVector
+        )
+
+    def __sub__(self, other):
+        return CFrame(
+            self.Position - other.Position,
+            self.RightVector - other.RightVector,
+            self.UpVector - other.UpVector,
+            self.LookVector - other.LookVector
+        )
+
+    def __mul__(self, other):
+        return CFrame(
+            self.Position * other.Position,
+            self.RightVector * other.RightVector,
+            self.UpVector * other.UpVector,
+            self.LookVector * other.LookVector
+        )
+
+    def __truediv__(self, other):
+        return CFrame(
+            self.Position / other.Position,
+            self.RightVector / other.RightVector,
+            self.UpVector / other.UpVector,
+            self.LookVector / other.LookVector
+        )
