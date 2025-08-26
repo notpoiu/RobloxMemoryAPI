@@ -1,5 +1,5 @@
 from ..offsets import *
-import time
+import time, math
 from utils.rbx.datastructures import *
 
 # Normal Classes #
@@ -300,6 +300,10 @@ class CameraClass(RBXInstance):
     # props #
     @property
     def FieldOfView(self):
+        return self.FieldOfViewRadians * (180/math.pi)
+    
+    @property
+    def FieldOfViewRadians(self):
         return self.memory_module.read_float(self.raw_address + Offsets["FOV"])
     
     @property

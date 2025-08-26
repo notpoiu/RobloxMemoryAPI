@@ -39,6 +39,6 @@ print("Health:", LocalPlayer.Character.Humanoid.Health, LocalPlayer.Character.Hu
 print("Player Count:", len(game.Players.GetPlayers()))
 print("==============================")
 print("CurrentCamera CFrame:", game.Workspace.CurrentCamera.CFrame)
-# print("CurrentCamera FOV:", game.Workspace.CurrentCamera.FieldOfView)
+print("CurrentCamera FOV:", game.Workspace.CurrentCamera.FieldOfView)
 print("CurrentCamera ViewportSize:", game.Workspace.CurrentCamera.ViewportSize)
 
