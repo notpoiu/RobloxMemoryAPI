@@ -1,3 +1,5 @@
+import math
+
 class UDim:
     def __init__(self, scale=0, offset=0):
         self.Scale = float(scale)
@@ -36,11 +38,6 @@ class Vector2:
             and self.X == other.X
             and self.Y == other.Y
         )
-
-
-import math
-
-
 class Vector3:
     def __init__(self, x=0, y=0, z=0):
         self.X = float(x)
@@ -51,13 +48,16 @@ class Vector3:
         return f"{self.X}, {self.Y}, {self.Z}"
 
     def __eq__(self, other):
+        eps = 1e-9
+
         return (
             isinstance(other, Vector3)
-            and self.X == other.X
-            and self.Y == other.Y
-            and self.Z == other.Z
+            and abs(self.X - other.X) < eps
+            and abs(self.Y - other.Y) < eps
+            and abs(self.Z - other.Z) < eps
         )
     
+    # --- Arithmetic ---
     def __add__(self, other):
         if isinstance(other, Vector3):
             return Vector3(self.X + other.X, self.Y + other.Y, self.Z + other.Z)
@@ -69,38 +69,28 @@ class Vector3:
         raise TypeError("Vector3 can only be subtracted by Vector3")
 
     def __mul__(self, other):
+        if isinstance(other, (int, float)):
+            return Vector3(self.X * other, self.Y * other, self.Z * other)
         if isinstance(other, Vector3):
             return Vector3(self.X * other.X, self.Y * other.Y, self.Z * other.Z)
-        if isinstance(other, (int, float)):
-            return Vector3(self.X * other, self.Y * other, self.Z * other)
         raise TypeError("Vector3 can only be multiplied by Vector3 or a number")
 
-    def __rmul__(self, other):
-        if isinstance(other, (int, float)):
-            return Vector3(self.X * other, self.Y * other, self.Z * other)
-        return NotImplemented
+    __rmul__ = __mul__
 
     def __truediv__(self, other):
-        if isinstance(other, Vector3):
-            return Vector3(self.X / other.X, self.Y / other.Y, self.Z / other.Z)
         if isinstance(other, (int, float)):
             return Vector3(self.X / other, self.Y / other, self.Z / other)
-        raise TypeError("Vector3 can only be divided by Vector3 or a number")
-
-    def __floordiv__(self, other):
         if isinstance(other, Vector3):
-            return Vector3(self.X // other.X, self.Y // other.Y, self.Z // other.Z)
-        if isinstance(other, (int, float)):
-            return Vector3(self.X // other, self.Y // other, self.Z // other)
-        raise TypeError("Vector3 can only be floor-divided by Vector3 or a number")
+            return Vector3(self.X / other.X, self.Y / other.Y, self.Z / other.Z)
+        raise TypeError("Vector3 can only be divided by Vector3 or a number")
 
     def __neg__(self):
         return Vector3(-self.X, -self.Y, -self.Z)
 
+    # --- Vector math ---
     def Dot(self, other):
         return self.X * other.X + self.Y * other.Y + self.Z * other.Z
 
-    # Vector utilities
     def Cross(self, other):
         return Vector3(
             self.Y * other.Z - self.Z * other.Y,
@@ -109,20 +99,20 @@ class Vector3:
         )
 
     def Magnitude(self):
-        return math.sqrt(self.X * self.X + self.Y * self.Y + self.Z * self.Z)
+        return math.sqrt(self.X**2 + self.Y**2 + self.Z**2)
 
     def Unit(self):
         m = self.Magnitude()
-        if m == 0:
-            return Vector3(0, 0, 0)
-        return Vector3(self.X / m, self.Y / m, self.Z / m)
+        return Vector3(self.X / m, self.Y / m, self.Z / m) if m != 0 else Vector3()
+
+    def Lerp(self, other, alpha: float):
+        return self + (other - self) * alpha
 
 
 class CFrame:
     def __init__(self, position=None, right=None, up=None, look=None):
         self.Position = position or Vector3(0, 0, 0)
 
-        # If any axis is provided, compute a clean orthonormal basis.
         if right is None and up is None and look is None:
             self.RightVector = Vector3(1, 0, 0)
             self.UpVector = Vector3(0, 1, 0)
@@ -136,33 +126,28 @@ class CFrame:
             f"{self.Position}, {self.RightVector}, {self.UpVector}, {self.LookVector}"
         )
 
-    def __eq__(self, value):
-        return (
-            isinstance(value, CFrame)
-            and self.Position == value.Position
-            and self.RightVector == value.RightVector
-            and self.UpVector == value.UpVector
-            and self.LookVector == value.LookVector
-        )
-
     @classmethod
     def new(cls, x=0, y=0, z=0):
         return cls(position=Vector3(x, y, z))
 
-    # Helpers to apply rotation only
+    # --- Rotation helpers ---
     def _rotate_vector(self, v: Vector3) -> Vector3:
         return (
-            self.RightVector * v.X + self.UpVector * v.Y + self.LookVector * v.Z
+            self.RightVector * v.X +
+            self.UpVector * v.Y +
+            self.LookVector * v.Z
+        )
+
+    def _inverse_rotate_vector(self, v: Vector3) -> Vector3:
+        # Multiply by transpose of rotation matrix
+        return Vector3(
+            v.Dot(self.RightVector),
+            v.Dot(self.UpVector),
+            v.Dot(self.LookVector)
         )
 
     @staticmethod
     def _orthonormal_basis(right=None, up=None, look=None):
-        """
-        Build a right-handed orthonormal basis (r, u, l) from any combination
-        of provided axes. If only one is provided, pick a stable orthogonal
-        fallback for the next, then derive the third via cross products so that
-        r × u = l.
-        """
         def unit(v: Vector3 | None):
             return v.Unit() if isinstance(v, Vector3) else None
 
@@ -173,7 +158,6 @@ class CFrame:
             return abs(a.Dot(b) / (ma * mb)) > 0.9999
 
         def orthogonal_to(v: Vector3) -> Vector3:
-            # Choose a fallback not parallel to v and remove projection.
             fallback = Vector3(0, 1, 0)
             if nearly_parallel(v, fallback):
                 fallback = Vector3(1, 0, 0)
@@ -212,36 +196,54 @@ class CFrame:
             u = l.Cross(r).Unit()
             return r, u, l
 
-        # Fallback to defaults (shouldn't reach here because caller checks)
         return Vector3(1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, -1)
+
+    # --- Operators ---
+    def __mul__(self, other):
+        if isinstance(other, CFrame):
+            rotated_pos = self._rotate_vector(other.Position)
+            new_pos = self.Position + rotated_pos
+
+            r = self._rotate_vector(other.RightVector)
+            u = self._rotate_vector(other.UpVector)
+            l = self._rotate_vector(other.LookVector)
+
+            return CFrame(new_pos, r, u, l)
+
+        if isinstance(other, Vector3):
+            return self.Position + self._rotate_vector(other)
+
+        raise TypeError("CFrame can only be multiplied by CFrame or Vector3")
 
     def __add__(self, other):
         if isinstance(other, Vector3):
-            return CFrame(
-                self.Position + other,
-                self.RightVector,
-                self.UpVector,
-                self.LookVector,
-            )
+            return CFrame(self.Position + other,
+                          self.RightVector, self.UpVector, self.LookVector)
         raise TypeError("CFrame can only be added to Vector3")
 
     def __sub__(self, other):
         if isinstance(other, Vector3):
-            return CFrame(
-                self.Position - other,
-                self.RightVector,
-                self.UpVector,
-                self.LookVector,
-            )
+            return CFrame(self.Position - other,
+                          self.RightVector, self.UpVector, self.LookVector)
         raise TypeError("CFrame can only be subtracted by Vector3")
 
-    def __mul__(self, other):
-        if isinstance(other, CFrame):
-            r = self._rotate_vector(other.RightVector)
-            u = self._rotate_vector(other.UpVector)
-            l = self._rotate_vector(other.LookVector)
-            p = self.Position + other.Position
-            return CFrame(p, r, u, l)
-        if isinstance(other, Vector3):
-            return self.Position + self._rotate_vector(other)
-        raise TypeError("CFrame can only be multiplied by CFrame or Vector3")
+    # --- API Methods ---
+    def Inverse(self):
+        # Rotation inverse is transpose
+        r = Vector3(self.RightVector.X, self.UpVector.X, self.LookVector.X)
+        u = Vector3(self.RightVector.Y, self.UpVector.Y, self.LookVector.Y)
+        l = Vector3(self.RightVector.Z, self.UpVector.Z, self.LookVector.Z)
+
+        inv_pos = Vector3(
+            -self.Position.Dot(r),
+            -self.Position.Dot(u),
+            -self.Position.Dot(l),
+        )
+
+        return CFrame(inv_pos, r, u, l)
+
+    def ToWorldSpace(self, cf):
+        return self * cf
+
+    def ToObjectSpace(self, cf):
+        return self.Inverse() * cf
