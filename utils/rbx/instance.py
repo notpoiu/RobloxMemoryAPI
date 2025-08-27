@@ -68,9 +68,9 @@ class RBXInstance:
         else:
             return None
         
-        RightVectorData = CFrameData[0:3]
-        UpVectorData = CFrameData[3:6]
-        LookVectorData = CFrameData[6:9]
+        RightVectorData = (CFrameData[0], CFrameData[3], CFrameData[6])
+        UpVectorData = (CFrameData[1], CFrameData[4], CFrameData[7])
+        LookVectorData = (-CFrameData[2], -CFrameData[5], -CFrameData[8])
         PositionData = CFrameData[9:12]
 
         return CFrame(
