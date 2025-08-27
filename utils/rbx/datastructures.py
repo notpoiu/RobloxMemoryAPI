@@ -67,6 +67,12 @@ class Vector3:
     def __truediv__(self, other):
         return Vector3(self.X / other.X, self.Y / other.Y, self.Z / other.Z)
 
+    def __neg__(self):
+        return Vector3(-self.X, -self.Y, -self.Z)
+
+    def Dot(self, other):
+        return self.X * other.X + self.Y * other.Y + self.Z * other.Z
+
 
 class CFrame:
     def __init__(self, position=None, right=None, up=None, look=None):
