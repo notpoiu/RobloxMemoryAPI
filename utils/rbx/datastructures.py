@@ -56,16 +56,40 @@ class Vector3:
         )
     
     def __add__(self, other):
-        return Vector3(self.X + other.X, self.Y + other.Y, self.Z + other.Z)
+        if isinstance(other, Vector3):
+            return Vector3(self.X + other.X, self.Y + other.Y, self.Z + other.Z)
+        raise TypeError("Vector3 can only be added to Vector3")
 
     def __sub__(self, other):
-        return Vector3(self.X - other.X, self.Y - other.Y, self.Z - other.Z)
+        if isinstance(other, Vector3):
+            return Vector3(self.X - other.X, self.Y - other.Y, self.Z - other.Z)
+        raise TypeError("Vector3 can only be subtracted by Vector3")
 
     def __mul__(self, other):
-        return Vector3(self.X * other.X, self.Y * other.Y, self.Z * other.Z)
+        if isinstance(other, Vector3):
+            return Vector3(self.X * other.X, self.Y * other.Y, self.Z * other.Z)
+        if isinstance(other, (int, float)):
+            return Vector3(self.X * other, self.Y * other, self.Z * other)
+        raise TypeError("Vector3 can only be multiplied by Vector3 or a number")
+
+    def __rmul__(self, other):
+        if isinstance(other, (int, float)):
+            return Vector3(self.X * other, self.Y * other, self.Z * other)
+        return NotImplemented
 
     def __truediv__(self, other):
-        return Vector3(self.X / other.X, self.Y / other.Y, self.Z / other.Z)
+        if isinstance(other, Vector3):
+            return Vector3(self.X / other.X, self.Y / other.Y, self.Z / other.Z)
+        if isinstance(other, (int, float)):
+            return Vector3(self.X / other, self.Y / other, self.Z / other)
+        raise TypeError("Vector3 can only be divided by Vector3 or a number")
+
+    def __floordiv__(self, other):
+        if isinstance(other, Vector3):
+            return Vector3(self.X // other.X, self.Y // other.Y, self.Z // other.Z)
+        if isinstance(other, (int, float)):
+            return Vector3(self.X // other, self.Y // other, self.Z // other)
+        raise TypeError("Vector3 can only be floor-divided by Vector3 or a number")
 
     def __neg__(self):
         return Vector3(-self.X, -self.Y, -self.Z)
@@ -98,35 +122,41 @@ class CFrame:
     @classmethod
     def new(cls, x=0, y=0, z=0):
         return cls(position=Vector3(x, y, z))
-    
-    def __add__(self, other):
-        return CFrame(
-            self.Position + other.Position,
-            self.RightVector + other.RightVector,
-            self.UpVector + other.UpVector,
-            self.LookVector + other.LookVector
+
+    # Helpers to apply rotation only
+    def _rotate_vector(self, v: Vector3) -> Vector3:
+        return (
+            self.RightVector * v.X + self.UpVector * v.Y + self.LookVector * v.Z
         )
+
+    def __add__(self, other):
+        if isinstance(other, Vector3):
+            return CFrame(
+                self.Position + other,
+                self.RightVector,
+                self.UpVector,
+                self.LookVector,
+            )
+        raise TypeError("CFrame can only be added to Vector3")
 
     def __sub__(self, other):
-        return CFrame(
-            self.Position - other.Position,
-            self.RightVector - other.RightVector,
-            self.UpVector - other.UpVector,
-            self.LookVector - other.LookVector
-        )
+        if isinstance(other, Vector3):
+            return CFrame(
+                self.Position - other,
+                self.RightVector,
+                self.UpVector,
+                self.LookVector,
+            )
+        raise TypeError("CFrame can only be subtracted by Vector3")
 
     def __mul__(self, other):
-        return CFrame(
-            self.Position * other.Position,
-            self.RightVector * other.RightVector,
-            self.UpVector * other.UpVector,
-            self.LookVector * other.LookVector
-        )
+        if isinstance(other, CFrame):
+            r = self._rotate_vector(other.RightVector)
+            u = self._rotate_vector(other.UpVector)
+            l = self._rotate_vector(other.LookVector)
 
-    def __truediv__(self, other):
-        return CFrame(
-            self.Position / other.Position,
-            self.RightVector / other.RightVector,
-            self.UpVector / other.UpVector,
-            self.LookVector / other.LookVector
-        )
+            p = self.Position + self._rotate_vector(other.Position)
+            return CFrame(p, r, u, l)
+        if isinstance(other, Vector3):
+            return self.Position + self._rotate_vector(other)
+        raise TypeError("CFrame can only be multiplied by CFrame or Vector3")
