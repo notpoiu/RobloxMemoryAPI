@@ -12,7 +12,6 @@ class UDim2:
         self.Y = UDim(scaleY, offsetY)
 
     def __repr__(self):
-        # Leverage UDim.__repr__ to format each component
         return f"{{{self.X}, {self.Y}}}"
 
     @classmethod
