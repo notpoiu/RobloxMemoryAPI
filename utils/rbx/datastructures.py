@@ -12,7 +12,8 @@ class UDim2:
         self.Y = UDim(scaleY, offsetY)
 
     def __repr__(self):
-        return f"{{{self.X.Scale}, {self.X.Offset}}}, {{{self.Y.Scale}, {self.Y.Offset}}}"
+        # Leverage UDim.__repr__ to format each component
+        return f"{{{self.X}, {self.Y}}}"
 
     @classmethod
     def fromScale(cls, scaleX, scaleY):
@@ -36,6 +37,9 @@ class Vector2:
             and self.X == other.X
             and self.Y == other.Y
         )
+
+
+import math
 
 
 class Vector3:
@@ -97,13 +101,36 @@ class Vector3:
     def Dot(self, other):
         return self.X * other.X + self.Y * other.Y + self.Z * other.Z
 
+    # Vector utilities
+    def Cross(self, other):
+        return Vector3(
+            self.Y * other.Z - self.Z * other.Y,
+            self.Z * other.X - self.X * other.Z,
+            self.X * other.Y - self.Y * other.X,
+        )
+
+    def Magnitude(self):
+        return math.sqrt(self.X * self.X + self.Y * self.Y + self.Z * self.Z)
+
+    def Unit(self):
+        m = self.Magnitude()
+        if m == 0:
+            return Vector3(0, 0, 0)
+        return Vector3(self.X / m, self.Y / m, self.Z / m)
+
 
 class CFrame:
     def __init__(self, position=None, right=None, up=None, look=None):
         self.Position = position or Vector3(0, 0, 0)
-        self.RightVector = right or Vector3(1, 0, 0)
-        self.UpVector = up or Vector3(0, 1, 0)
-        self.LookVector = look or Vector3(0, 0, -1)
+
+        # If any axis is provided, compute a clean orthonormal basis.
+        if right is None and up is None and look is None:
+            self.RightVector = Vector3(1, 0, 0)
+            self.UpVector = Vector3(0, 1, 0)
+            self.LookVector = Vector3(0, 0, -1)
+        else:
+            r, u, l = self._orthonormal_basis(right, up, look)
+            self.RightVector, self.UpVector, self.LookVector = r, u, l
 
     def __repr__(self):
         return (
@@ -128,6 +155,66 @@ class CFrame:
         return (
             self.RightVector * v.X + self.UpVector * v.Y + self.LookVector * v.Z
         )
+
+    @staticmethod
+    def _orthonormal_basis(right=None, up=None, look=None):
+        """
+        Build a right-handed orthonormal basis (r, u, l) from any combination
+        of provided axes. If only one is provided, pick a stable orthogonal
+        fallback for the next, then derive the third via cross products so that
+        r × u = l.
+        """
+        def unit(v: Vector3 | None):
+            return v.Unit() if isinstance(v, Vector3) else None
+
+        def nearly_parallel(a: Vector3, b: Vector3) -> bool:
+            ma, mb = a.Magnitude(), b.Magnitude()
+            if ma == 0 or mb == 0:
+                return True
+            return abs(a.Dot(b) / (ma * mb)) > 0.9999
+
+        def orthogonal_to(v: Vector3) -> Vector3:
+            # Choose a fallback not parallel to v and remove projection.
+            fallback = Vector3(0, 1, 0)
+            if nearly_parallel(v, fallback):
+                fallback = Vector3(1, 0, 0)
+            return (fallback - v * fallback.Dot(v)).Unit()
+
+        r = unit(right)
+        u = unit(up)
+        l = unit(look)
+
+        if r is not None and u is not None:
+            u = (u - r * u.Dot(r)).Unit()
+            l = r.Cross(u).Unit()
+            return r, u, l
+        if r is not None and l is not None:
+            l = (l - r * l.Dot(r)).Unit()
+            u = l.Cross(r).Unit()
+            l = r.Cross(u).Unit()
+            return r, u, l
+        if u is not None and l is not None:
+            u = u.Unit()
+            l = (l - u * l.Dot(u)).Unit()
+            r = u.Cross(l).Unit()
+            u = l.Cross(r).Unit()
+            return r, u, l
+        if r is not None:
+            u = orthogonal_to(r)
+            l = r.Cross(u).Unit()
+            return r, u, l
+        if u is not None:
+            r = orthogonal_to(u)
+            l = r.Cross(u).Unit()
+            return r, u, l
+        if l is not None:
+            u = orthogonal_to(l)
+            r = u.Cross(l).Unit()
+            u = l.Cross(r).Unit()
+            return r, u, l
+
+        # Fallback to defaults (shouldn't reach here because caller checks)
+        return Vector3(1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, -1)
 
     def __add__(self, other):
         if isinstance(other, Vector3):
@@ -154,8 +241,7 @@ class CFrame:
             r = self._rotate_vector(other.RightVector)
             u = self._rotate_vector(other.UpVector)
             l = self._rotate_vector(other.LookVector)
-
-            p = self.Position + self._rotate_vector(other.Position)
+            p = self.Position + other.Position
             return CFrame(p, r, u, l)
         if isinstance(other, Vector3):
             return self.Position + self._rotate_vector(other)
