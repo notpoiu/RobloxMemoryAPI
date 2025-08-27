@@ -56,15 +56,12 @@ class RBXInstance:
     def CFrame(self):
         className = self.ClassName
 
-        RotationMatriciesLength = 3 * 3
+        CFrameDataMatriciesLength = 4 * 3
 
         if "part" in className.lower():
-            # extra 3 for position matrix
-            CFrameData = self.memory_module.read_floats(self.primitive_address + Offsets["CFrame"], RotationMatriciesLength + 3)
+            CFrameData = self.memory_module.read_floats(self.primitive_address + Offsets["CFrame"], CFrameDataMatriciesLength)
         elif className == "Camera":
-            # * 4 because 1 float is 4 bytes
-            CameraCFrameOffset = Offsets["CameraPos"] - RotationMatriciesLength * 4
-            CFrameData = self.memory_module.read_floats(self.raw_address + CameraCFrameOffset, RotationMatriciesLength + 3)
+            CFrameData = self.memory_module.read_floats(self.raw_address + Offsets["CameraCFrame"], RotationMatriciesLength)
         else:
             return None
         
