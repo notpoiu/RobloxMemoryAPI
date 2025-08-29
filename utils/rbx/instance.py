@@ -451,13 +451,7 @@ class WorkspaceService(ServiceBase):
         if self.failed: return
 
         addr = int.from_bytes(self.memory_module.read(self.instance.raw_address + Offsets["Camera"], 8), 'little')
-        return CameraClass(self.memory_module, RBXInstance(addr, self.memory_module))
-
-    def GetPlayers(self):
-        players = []
-
-        for instance in self.instance.GetChildren():
-            if instance.ClassName == "Player":
-                players.append(PlayerClass(self.memory_module, instance))
+        if addr == 0:
+            return None
         
-        return players
+        return CameraClass(self.memory_module, RBXInstance(addr, self.memory_module))
