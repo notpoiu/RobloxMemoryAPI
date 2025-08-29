@@ -256,3 +256,11 @@ class CFrame:
 
     def ToObjectSpace(self, cf):
         return self.Inverse() * cf
+
+    def GetComponents(self):
+        return tuple([
+            self.RightVector.X, self.UpVector.X, self.LookVector.X,
+            self.RightVector.Y, self.UpVector.Y, self.LookVector.Y,
+            self.RightVector.Z, self.UpVector.Z, self.LookVector.Z,
+            self.Position.X, self.Position.Y, self.Position.Z
+        ])
