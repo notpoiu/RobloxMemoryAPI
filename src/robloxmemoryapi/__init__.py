@@ -2,7 +2,7 @@ import platform
 import math
 
 __all__ = ["RobloxRandom", "RobloxGameClient", "__version__"]
-__version__ = "0.1.0"
+__version__ = "0.0.1"
 
 
 class RobloxRandom:
