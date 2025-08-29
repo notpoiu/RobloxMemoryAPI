@@ -6,17 +6,21 @@ This was made by [upio](https://github.com/notpoiu), [mstudio45](https://github.
 
 ## Installation
 
-Clone the repository and install the required dependencies:
+PyPI:
 
 ```bash
-git clone https://github.com/notpoiu/RobloxMemoryAPI.git
-cd RobloxMemoryAPI
-pip install -r requirements.txt
+pip install robloxmemoryapi
+```
+
+Development (editable install from source):
+
+```bash
+pip install -e .
 ```
 
 ## Usage
 
-An example script can be found in [example.py](example.py)
+An example script can be found in [example.py](example.py). If running from the repo, use the editable install above so `import robloxmemoryapi` resolves the `src` package.
 
 Import the library and create a client instance:
 

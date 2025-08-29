@@ -1,6 +1,6 @@
 from ..offsets import *
 import time, math
-from utils.rbx.datastructures import *
+from .datastructures import *
 
 # Normal Classes #
 class RBXInstance:

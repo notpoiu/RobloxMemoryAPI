@@ -1,4 +1,6 @@
-import json, requests
+import json
+import requests
+from importlib import resources
 
 Offsets = {}
 def ParseOffsets(*DataSources):
@@ -12,25 +14,26 @@ def ParseOffsets(*DataSources):
             except (ValueError, TypeError):
                 pass
 
+
 OffsetsRequest = requests.get("https://offsets.ntgetwritewatch.workers.dev/offsets.json")
 
 try:
-    LoadedOffsetsRequest = requests.get("https://raw.githubusercontent.com/notpoiu/RobloxMemoryAPI/refs/heads/main/data/offsets.json")
+    LoadedOffsetsRequest = requests.get(
+        "https://raw.githubusercontent.com/notpoiu/RobloxMemoryAPI/refs/heads/main/src/robloxmemoryapi/data/offsets.json"
+    )
     LoadedOffsetsRequest.raise_for_status()
 
     LoadedOffsets = LoadedOffsetsRequest.json()
-except:
-    
+except Exception:
     try:
-        with open("data/offsets.json", "r") as f:
+        with resources.files("robloxmemoryapi.data").joinpath("offsets.json").open("r", encoding="utf-8") as f:
             LoadedOffsets = json.load(f)
-            f.close()
-    except:
-        # TODO: update ts
+    except Exception:
+        # Fallback defaults
         LoadedOffsets = {
             "Text": "0xC10",
             "Character": "0x328",
-            "PrimaryPart": "0x268"
+            "PrimaryPart": "0x268",
         }
 
 ParseOffsets(LoadedOffsets, OffsetsRequest.json())
@@ -40,3 +43,4 @@ RotationMatriciesLengthBytes = 3 * 3 * 4
 
 Offsets["CameraCFrame"] = Offsets["CameraPos"] - RotationMatriciesLengthBytes
 Offsets["CFrame"] = Offsets["Position"] - RotationMatriciesLengthBytes
+

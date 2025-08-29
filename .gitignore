@@ -1,3 +1,10 @@
 .DS_Store
 offset_finder.py
 **/__pycache__/
+dist/
+build/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+.venv/
+venv/
