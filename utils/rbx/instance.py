@@ -25,14 +25,10 @@ class RBXInstance:
     @property
     def Parent(self):
         parent_pointer = int.from_bytes(self.memory_module.read(self.raw_address + Offsets["Parent"], 8), 'little')
-        instance = RBXInstance(parent_pointer, self.memory_module)
-
-        try:
-            thing = instance.ClassName
-        except Exception as e:
+        if parent_pointer == 0:
             return None
-
-        return instance
+        
+        return RBXInstance(parent_pointer, self.memory_module)
     
     @property
     def Name(self):
@@ -89,7 +85,7 @@ class RBXInstance:
         else:
             try:
                 x = self.memory_module.read_float(self.raw_address + Offsets["FramePositionX"])
-                x_offset = self.memory_module.read_int(self.raw_address + Offsets["FramePositionOffsetX "])
+                x_offset = self.memory_module.read_int(self.raw_address + Offsets["FramePositionOffsetX"])
 
                 y = self.memory_module.read_float(self.raw_address + Offsets["FramePositionY"])
                 y_offset = self.memory_module.read_int(self.raw_address + Offsets["FramePositionOffsetY"])
@@ -181,14 +177,10 @@ class RBXInstance:
             return None
         
         parent_pointer = int.from_bytes(self.memory_module.read(self.raw_address + Offsets["PrimaryPart"], 8), 'little')
-        instance = RBXInstance(parent_pointer, self.memory_module)
-
-        try:
-            thing = instance.ClassName
-        except Exception as e:
+        if parent_pointer == 0:
             return None
 
-        return instance
+        return RBXInstance(parent_pointer, self.memory_module)
     
     # functions #
     def GetChildren(self):
@@ -284,6 +276,9 @@ class PlayerClass(RBXInstance):
     @property
     def Character(self) -> RBXInstance | None:
         addr = int.from_bytes(self.memory_module.read(self.instance.raw_address + Offsets["Character"], 8), 'little')
+        if addr == 0:
+            return None
+        
         return RBXInstance(addr, self.memory_module)
     
     @property
@@ -293,6 +288,14 @@ class PlayerClass(RBXInstance):
     @property
     def UserId(self):
         return self.memory_module.read_long(self.raw_address + Offsets["UserId"])
+
+    @property
+    def Team(self):
+        addr = int.from_bytes(self.memory_module.read(self.instance.raw_address + Offsets["Team"], 8), 'little')
+        if addr == 0:
+            return None
+        
+        return RBXInstance(addr, self.memory_module)
 
 class CameraClass(RBXInstance):
     def __init__(self, memory_module, camera: RBXInstance):
@@ -342,13 +345,16 @@ class DataModel(ServiceBase):
 
         self.error = None
         try:
-            fake_dm_pointer_offset = Offsets["FakeDataModelPointer"]
-            fake_dm_pointer_addr = memory_module.base + fake_dm_pointer_offset
-            fake_dm_pointer_val = int.from_bytes(memory_module.read(fake_dm_pointer_addr, 8), 'little')
+            if Offsets.get("DataModelPointer") is not None:
+                datamodel_addr = Offsets["DataModelPointer"]
+            else:
+                fake_dm_pointer_offset = Offsets["FakeDataModelPointer"]
+                fake_dm_pointer_addr = memory_module.base + fake_dm_pointer_offset
+                fake_dm_pointer_val = int.from_bytes(memory_module.read(fake_dm_pointer_addr, 8), 'little')
 
-            dm_to_datamodel_offset = Offsets["FakeDataModelToDataModel"]
-            datamodel_addr_ptr = fake_dm_pointer_val + dm_to_datamodel_offset
-            datamodel_addr = int.from_bytes(memory_module.read(datamodel_addr_ptr, 8), 'little')
+                dm_to_datamodel_offset = Offsets["FakeDataModelToDataModel"]
+                datamodel_addr_ptr = fake_dm_pointer_val + dm_to_datamodel_offset
+                datamodel_addr = int.from_bytes(memory_module.read(datamodel_addr_ptr, 8), 'little')
 
             datamodel_instance = RBXInstance(datamodel_addr, memory_module)
 
