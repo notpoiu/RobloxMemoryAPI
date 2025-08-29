@@ -2,8 +2,7 @@ import platform
 import math
 
 __all__ = ["RobloxRandom", "RobloxGameClient", "__version__"]
-__version__ = "0.0.1"
-
+__version__ = "0.0.2"
 
 class RobloxRandom:
     MULT = 6364136223846793005
@@ -47,7 +46,6 @@ class RobloxRandom:
             r = self._next_internal()
             return ((u * r) >> 32) + lo
 
-
 class RobloxGameClient:
     def __init__(self, pid: int = None, process_name: str = "RobloxPlayerBeta.exe"):
         if platform.system() != "Windows":
@@ -84,4 +82,3 @@ class RobloxGameClient:
 
         from .utils.rbx.instance import DataModel
         return DataModel(self.memory_module)
-

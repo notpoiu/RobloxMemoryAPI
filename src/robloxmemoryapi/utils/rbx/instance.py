@@ -20,6 +20,12 @@ class RBXInstance:
         part_primitive_pointer = self.raw_address + Offsets["Primitive"]
         part_primitive = int.from_bytes(self.memory_module.read(part_primitive_pointer, 8), 'little')
         return part_primitive
+    
+    @property
+    def on_demand_instance_address(self):
+        part_primitive_pointer = self.raw_address + Offsets["OnDemandInstance"]
+        part_primitive = int.from_bytes(self.memory_module.read(part_primitive_pointer, 8), 'little')
+        return part_primitive
 
     # props #
     @property
@@ -94,6 +100,16 @@ class RBXInstance:
             except (KeyError, OSError) as e:
                 print(f"Error reading position: {e}")
                 return (0.0, 0, 0.0, 0)
+
+    @property
+    def Velocity(self):
+        className = self.ClassName
+
+        if "part" in className.lower():
+            velocity_vector3 = self.memory_module.read_floats(self.primitive_address + Offsets["Velocity"], 3)
+            return Vector3(*velocity_vector3)
+        
+        return None
 
     @property
     def Size(self):
