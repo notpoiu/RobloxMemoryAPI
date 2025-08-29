@@ -68,6 +68,9 @@ class RobloxGameClient:
         self.memory_module = EvasiveProcess(self.pid, PROCESS_VM_READ | PROCESS_QUERY_INFORMATION)
         self.failed = False
 
+    def close(self):
+        self.memory_module.close()
+
     @property
     def DataModel(self):        
         if platform.system() != "Windows":

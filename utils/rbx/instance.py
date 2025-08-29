@@ -56,18 +56,18 @@ class RBXInstance:
     def CFrame(self):
         className = self.ClassName
 
-        CFrameDataMatriciesLength = 4 * 3
+        CFrameDataMatriciesLength = 12 # 3x4 matrix
 
         if "part" in className.lower():
             CFrameData = self.memory_module.read_floats(self.primitive_address + Offsets["CFrame"], CFrameDataMatriciesLength)
         elif className == "Camera":
-            CFrameData = self.memory_module.read_floats(self.raw_address + Offsets["CameraCFrame"], RotationMatriciesLength)
+            CFrameData = self.memory_module.read_floats(self.raw_address + Offsets["CameraCFrame"], CFrameDataMatriciesLength)
         else:
             return None
         
-        RightVectorData = (CFrameData[0], CFrameData[3], CFrameData[6])
-        UpVectorData = (CFrameData[1], CFrameData[4], CFrameData[7])
-        LookVectorData = (-CFrameData[2], -CFrameData[5], -CFrameData[8])
+        RightVectorData = get_flat_matrix_column(CFrameData, 0)
+        UpVectorData = get_flat_matrix_column(CFrameData, 1)
+        LookVectorData = get_flat_matrix_column(CFrameData, 2, invert_values=True)
         PositionData = CFrameData[9:12]
 
         return CFrame(
@@ -76,7 +76,6 @@ class RBXInstance:
             Vector3(*UpVectorData),
             Vector3(*LookVectorData)
         )
-
 
     @property
     def Position(self):

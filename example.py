@@ -42,3 +42,4 @@ print("CurrentCamera CFrame:", game.Workspace.CurrentCamera.CFrame)
 print("CurrentCamera FOV:", game.Workspace.CurrentCamera.FieldOfView)
 print("CurrentCamera ViewportSize:", game.Workspace.CurrentCamera.ViewportSize)
 
+client.close()

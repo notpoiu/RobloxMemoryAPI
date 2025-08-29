@@ -1,5 +1,13 @@
 import math
 
+def get_flat_matrix_column(matrix, column, invert_values=False):
+    stride = 3
+
+    if invert_values:
+        return [matrix[column + i * stride] * -1 for i in range(3)]
+    
+    return [matrix[column + i * stride] for i in range(3)]
+
 class UDim:
     def __init__(self, scale=0, offset=0):
         self.Scale = float(scale)
@@ -38,6 +46,7 @@ class Vector2:
             and self.X == other.X
             and self.Y == other.Y
         )
+
 class Vector3:
     def __init__(self, x=0, y=0, z=0):
         self.X = float(x)
@@ -108,7 +117,6 @@ class Vector3:
     def Lerp(self, other, alpha: float):
         return self + (other - self) * alpha
 
-
 class CFrame:
     def __init__(self, position=None, right=None, up=None, look=None):
         self.Position = position or Vector3(0, 0, 0)
@@ -169,31 +177,32 @@ class CFrame:
 
         if r is not None and u is not None:
             u = (u - r * u.Dot(r)).Unit()
-            l = r.Cross(u).Unit()
+            l = -r.Cross(u).Unit()
             return r, u, l
+        
         if r is not None and l is not None:
             l = (l - r * l.Dot(r)).Unit()
             u = l.Cross(r).Unit()
-            l = r.Cross(u).Unit()
             return r, u, l
+        
         if u is not None and l is not None:
-            u = u.Unit()
-            l = (l - u * l.Dot(u)).Unit()
-            r = u.Cross(l).Unit()
-            u = l.Cross(r).Unit()
+            l = (l - u * l.Dot(l)).Unit()
+            r = l.Cross(u).Unit()
             return r, u, l
+        
         if r is not None:
             u = orthogonal_to(r)
-            l = r.Cross(u).Unit()
+            l = -r.Cross(u).Unit()
             return r, u, l
+        
         if u is not None:
             r = orthogonal_to(u)
-            l = r.Cross(u).Unit()
+            l = -r.Cross(u).Unit()
             return r, u, l
+        
         if l is not None:
             u = orthogonal_to(l)
-            r = u.Cross(l).Unit()
-            u = l.Cross(r).Unit()
+            r = l.Cross(u).Unit()
             return r, u, l
 
         return Vector3(1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, -1)
