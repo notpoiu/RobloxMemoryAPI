@@ -32,8 +32,8 @@ except Exception:
         # Fallback defaults
         LoadedOffsets = {
             "Text": "0xC10",
-            "Character": "0x328",
-            "PrimaryPart": "0x268",
+            "Character": "0x340",
+            "PrimaryPart": "0x260",
         }
 
 ParseOffsets(LoadedOffsets, OffsetsRequest.json())
