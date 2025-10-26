@@ -30,10 +30,24 @@ from robloxmemoryapi import RobloxGameClient
 client = RobloxGameClient()
 ```
 
+To request write access (e.g. to patch values), pass `allow_write=True` when creating the client.
+
+```python
+client = RobloxGameClient(allow_write=True)
+```
+
 Access the data model:
 
 ```python
 game = client.DataModel
+```
+
+Kill the local player:
+
+```python
+# (requires allow_write=True when creating the client)
+# allow_write may be detected by roblox. It is disabled by default.
+game.Players.LocalPlayer.Character.Humanoid.Health = 0
 ```
 
 Get the local player's name:

@@ -20,6 +20,8 @@ BOOL = wintypes.BOOL
 
 PROCESS_QUERY_INFORMATION = 0x0400
 PROCESS_VM_READ = 0x0010
+PROCESS_VM_WRITE = 0x0020
+PROCESS_VM_OPERATION = 0x0008
 LIST_MODULES_ALL = 0x03
 STATUS_SUCCESS = 0
 MEM_COMMIT = 0x1000
@@ -79,17 +81,27 @@ NtReadVirtualMemoryProto = ctypes.WINFUNCTYPE(
     ctypes.c_ulong,
     ctypes.POINTER(ctypes.c_ulong)
 )
+NtWriteVirtualMemoryProto = ctypes.WINFUNCTYPE(
+    NTSTATUS,
+    HANDLE,
+    LPVOID,
+    LPVOID,
+    ctypes.c_ulong,
+    ctypes.POINTER(ctypes.c_ulong)
+)
 NtCloseProto = ctypes.WINFUNCTYPE(NTSTATUS, HANDLE)
 
 syscall_id_open = get_syscall_number("NtOpenProcess")
 syscall_id_read = get_syscall_number("NtReadVirtualMemory")
+syscall_id_write = get_syscall_number("NtWriteVirtualMemory")
 syscall_id_close = get_syscall_number("NtClose")
 
-if not all([syscall_id_open, syscall_id_read, syscall_id_close]):
+if not all([syscall_id_open, syscall_id_read, syscall_id_write, syscall_id_close]):
     raise RuntimeError("Could not find required syscall numbers.")
 
 nt_open_process_syscall = create_syscall_function(syscall_id_open, NtOpenProcessProto)
 nt_read_virtual_memory_syscall = create_syscall_function(syscall_id_read, NtReadVirtualMemoryProto)
+nt_write_virtual_memory_syscall = create_syscall_function(syscall_id_write, NtWriteVirtualMemoryProto)
 nt_close_syscall = create_syscall_function(syscall_id_close, NtCloseProto)
 
 psapi.EnumProcessModulesEx.argtypes = [
@@ -204,6 +216,27 @@ class EvasiveProcess:
             raise OSError(f"NtReadVirtualMemory failed with NTSTATUS: 0x{status:X}")
         return buffer.raw[:bytes_read.value]
 
+    def write(self, address: int, data: bytes | bytearray) -> int:
+        if not self.handle or self.handle.value == 0:
+            raise ValueError("Process handle is not valid.")
+        if not isinstance(data, (bytes, bytearray)):
+            raise TypeError("data must be bytes-like.")
+        raw = bytes(data)
+        if len(raw) == 0:
+            return 0
+        buffer = (ctypes.c_ubyte * len(raw)).from_buffer_copy(raw)
+        bytes_written = ctypes.c_ulong(0)
+        status = nt_write_virtual_memory_syscall(
+            self.handle,
+            LPVOID(address),
+            buffer,
+            len(raw),
+            ctypes.byref(bytes_written)
+        )
+        if status != STATUS_SUCCESS:
+            raise OSError(f"NtWriteVirtualMemory failed with NTSTATUS: 0x{status:X}")
+        return bytes_written.value
+
     # numbers #
     def read_int(self, address: int) -> int:
         buffer = self.read(address, 4)
@@ -243,6 +276,23 @@ class EvasiveProcess:
             return floats
         except (OSError, struct.error) as e:
             return [0.0]
+    
+    def write_int(self, address: int, value: int) -> None:
+        self.write(address, struct.pack('<I', value & 0xFFFFFFFF))
+
+    def write_long(self, address: int, value: int) -> None:
+        self.write(address, struct.pack('<Q', value & 0xFFFFFFFFFFFFFFFF))
+
+    def write_double(self, address: int, value: float) -> None:
+        self.write(address, struct.pack('<d', value))
+
+    def write_float(self, address: int, value: float) -> None:
+        self.write(address, struct.pack('<f', value))
+
+    def write_floats(self, address: int, values) -> None:
+        packed = b''.join(struct.pack('<f', float(v)) for v in values)
+        if packed:
+            self.write(address, packed)
 
     # bool #
     def read_bool(self, address: int) -> bool:
@@ -252,6 +302,9 @@ class EvasiveProcess:
             return bool(int.from_bytes(bool_byte, 'little'))
         except OSError:
             return False
+    
+    def write_bool(self, address: int, value: bool) -> None:
+        self.write(address, (1 if value else 0).to_bytes(1, 'little'))
 
     # string #
     def read_raw_string(self, address: int, max_length: int = 256) -> str:
@@ -259,6 +312,12 @@ class EvasiveProcess:
         null_pos = buffer.find(b'\x00')
         valid_bytes = buffer[:null_pos] if null_pos != -1 else buffer
         return valid_bytes.decode('utf-8', errors='ignore')
+    
+    def write_raw_string(self, address: int, value: str, null_terminate: bool = True) -> None:
+        data = value.encode('utf-8')
+        if null_terminate:
+            data += b'\x00'
+        self.write(address, data)
         
     def read_string(self, address: int) -> str:
         string_length = self.read_int(address + 0x10)

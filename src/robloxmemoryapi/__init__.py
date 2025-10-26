@@ -47,7 +47,12 @@ class RobloxRandom:
             return ((u * r) >> 32) + lo
 
 class RobloxGameClient:
-    def __init__(self, pid: int = None, process_name: str = "RobloxPlayerBeta.exe"):
+    def __init__(
+        self,
+        pid: int = None,
+        process_name: str = "RobloxPlayerBeta.exe",
+        allow_write: bool = False,
+    ):
         if platform.system() != "Windows":
             self.failed = True
             return
@@ -56,6 +61,8 @@ class RobloxGameClient:
             EvasiveProcess,
             PROCESS_QUERY_INFORMATION,
             PROCESS_VM_READ,
+            PROCESS_VM_WRITE,
+            PROCESS_VM_OPERATION,
             get_pid_by_name,
         )
 
@@ -67,7 +74,11 @@ class RobloxGameClient:
         if self.pid is None or self.pid == 0:
             raise ValueError("Failed to get PID.")
 
-        self.memory_module = EvasiveProcess(self.pid, PROCESS_VM_READ | PROCESS_QUERY_INFORMATION)
+        desired_access = PROCESS_VM_READ | PROCESS_QUERY_INFORMATION
+        if allow_write:
+            desired_access |= PROCESS_VM_WRITE | PROCESS_VM_OPERATION
+
+        self.memory_module = EvasiveProcess(self.pid, desired_access)
         self.failed = False
 
     def close(self):

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "robloxmemoryapi"
-version = "0.0.3"
-description = "Python Library that abstracts reading data from the Roblox DataModel"
+version = "0.0.4"
+description = "Python Library that abstracts reading and writing data from the Roblox DataModel"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.9"
 license = { file = "LICENSE.md" }

@@ -1,4 +1,5 @@
 from robloxmemoryapi import RobloxGameClient, RobloxRandom
+from robloxmemoryapi.utils.rbx.datastructures import UDim2
 import platform
 
 ## Random Class ##
@@ -12,7 +13,8 @@ if platform.system() != "Windows":
     exit()
 
 # Create a client instance
-client = RobloxGameClient()
+# allow_write is by default False, but can be enabled by passing True
+client = RobloxGameClient(allow_write=True)
 # client = RobloxGameClient(pid=2398) # PID is also possible
 
 if client.failed:
@@ -41,5 +43,8 @@ print("==============================")
 print("CurrentCamera CFrame:", game.Workspace.CurrentCamera.CFrame)
 print("CurrentCamera FOV:", game.Workspace.CurrentCamera.FieldOfView)
 print("CurrentCamera ViewportSize:", game.Workspace.CurrentCamera.ViewportSize)
+
+# Write to the client's memory (kills player)
+#LocalPlayer.Character.Humanoid.Health = 0
 
 client.close()

@@ -15,17 +15,105 @@ class RBXInstance:
         return self.FindFirstChild(key)
 
     # utilities #
+    def _ensure_writable(self):
+        if not hasattr(self.memory_module, "write"):
+            raise RuntimeError("Write operations require a memory module with write support (allow_write=True).")
+
+    @staticmethod
+    def _as_vector3(value, context="value"):
+        if isinstance(value, Vector3):
+            return value
+        
+        if isinstance(value, (tuple, list)) and len(value) == 3:
+            return Vector3(*value)
+        
+        raise TypeError(f"{context} must be a Vector3 or an iterable of three numbers.")
+
+    @staticmethod
+    def _as_vector2(value, context="value"):
+        if isinstance(value, Vector2):
+            return value
+        
+        if isinstance(value, (tuple, list)) and len(value) == 2:
+            return Vector2(*value)
+        
+        raise TypeError(f"{context} must be a Vector2 or an iterable of two numbers.")
+
+    @staticmethod
+    def _as_udim2(value, context="value"):
+        if isinstance(value, UDim2):
+            return value
+        if isinstance(value, (tuple, list)):
+            if len(value) == 4:
+                return UDim2(value[0], value[1], value[2], value[3])
+            if len(value) == 2:
+                x, y = value
+                if isinstance(x, UDim) and isinstance(y, UDim):
+                    return UDim2(x.Scale, x.Offset, y.Scale, y.Offset)
+                if isinstance(x, (tuple, list)) and isinstance(y, (tuple, list)) and len(x) == 2 and len(y) == 2:
+                    return UDim2(x[0], x[1], y[0], y[1])
+        raise TypeError(f"{context} must be a UDim2 or a compatible iterable.")
+
+    # memory helpers #
+    def _write_rbx_string(self, address: int, value: str):
+        self._ensure_writable()
+
+        if not isinstance(value, str):
+            raise TypeError("value must be a string.")
+        
+        if address == 0:
+            raise ValueError("String address is null; cannot write.")
+        
+        encoded = value.encode('utf-8')
+        if len(encoded) > 15:
+            raise ValueError("String too long (max 15 UTF-8 bytes supported for inline Roblox strings).")
+        
+        current_length = self.memory_module.read_int(address + 0x10)
+        if current_length > 15:
+            raise ValueError("Existing string is heap allocated; inline overwrite is not supported.")
+        
+        padded = encoded + b'\x00'
+        if len(padded) < 16:
+            padded += b'\x00' * (16 - len(padded))
+        
+        self.memory_module.write(address, padded[:16])
+        self.memory_module.write_int(address + 0x10, len(encoded))
+
+
+    def _read_udim2(self, address: int) -> UDim2:
+        if not isinstance(address, int):
+            raise TypeError("address must be an int.")
+
+        scale_x = self.memory_module.read_float(address)
+        offset_x = self.memory_module.read_int(address + 0x4)
+        scale_y = self.memory_module.read_float(address + 0x8)
+        offset_y = self.memory_module.read_int(address + 0xC)
+
+        return UDim2(scale_x, offset_x, scale_y, offset_y)
+        
+
+    def _write_udim2(self, address: int, value: UDim2):
+        value = self._as_udim2(value, "UDim2")
+
+        if not isinstance(value, UDim2):
+            raise TypeError("value must be a UDim2.")
+
+        self._ensure_writable()
+
+        self.memory_module.write_float(address, value.X.Scale)
+        self.memory_module.write_int(address + 0x4, value.X.Offset)
+        
+        self.memory_module.write_float(address + 0x8, value.Y.Scale)
+        self.memory_module.write_int(address + 0xC, value.Y.Offset)
+
+
+    # useful pointer stuff #
     @property
     def primitive_address(self):
         part_primitive_pointer = self.raw_address + Offsets["Primitive"]
         part_primitive = int.from_bytes(self.memory_module.read(part_primitive_pointer, 8), 'little')
         return part_primitive
     
-    @property
-    def on_demand_instance_address(self):
-        part_primitive_pointer = self.raw_address + Offsets["OnDemandInstance"]
-        part_primitive = int.from_bytes(self.memory_module.read(part_primitive_pointer, 8), 'little')
-        return part_primitive
 
     # props #
     @property
@@ -36,11 +124,31 @@ class RBXInstance:
         
         return RBXInstance(parent_pointer, self.memory_module)
     
+    @Parent.setter
+    def Parent(self, value):
+        if value is None:
+            target = 0
+        elif isinstance(value, RBXInstance):
+            target = value.raw_address
+        elif isinstance(value, int):
+            target = value
+        else:
+            raise TypeError("Parent must be set to an RBXInstance, int address, or None.")
+        self._ensure_writable()
+        self.memory_module.write_long(self.raw_address + Offsets["Parent"], target)
+
     @property
     def Name(self):
         name_address_pointer = self.raw_address + Offsets["Name"]
         name_address = int.from_bytes(self.memory_module.read(name_address_pointer, 8), 'little')
         return self.memory_module.read_string(name_address)
+    
+    @Name.setter
+    def Name(self, value: str):
+        self._ensure_writable()
+        name_address_pointer = self.raw_address + Offsets["Name"]
+        name_address = int.from_bytes(self.memory_module.read(name_address_pointer, 8), 'little')
+        self._write_rbx_string(name_address, value)
     
     @property
     def ClassName(self):
@@ -79,6 +187,29 @@ class RBXInstance:
             Vector3(*LookVectorData)
         )
 
+    @CFrame.setter
+    def CFrame(self, value: "CFrame"):
+        if not isinstance(value, CFrame):
+            raise TypeError("CFrame setter expects a CFrame value.")
+        self._ensure_writable()
+
+        matrix_data = [
+            value.RightVector.X, value.UpVector.X, -value.LookVector.X,
+            value.RightVector.Y, value.UpVector.Y, -value.LookVector.Y,
+            value.RightVector.Z, value.UpVector.Z, -value.LookVector.Z,
+            value.Position.X, value.Position.Y, value.Position.Z
+        ]
+
+        className = self.ClassName
+        if "part" in className.lower():
+            base_address = self.primitive_address + Offsets["CFrame"]
+        elif className == "Camera":
+            base_address = self.raw_address + Offsets["CameraCFrame"]
+        else:
+            raise AttributeError("CFrame cannot be written for this instance type.")
+
+        self.memory_module.write_floats(base_address, matrix_data)
+
     @property
     def Position(self):
         className = self.ClassName
@@ -89,17 +220,30 @@ class RBXInstance:
             position_vector3 = self.memory_module.read_floats(self.raw_address + Offsets["CameraPos"], 3)
             return Vector3(*position_vector3)
         else:
-            try:
-                x = self.memory_module.read_float(self.raw_address + Offsets["FramePositionX"])
-                x_offset = self.memory_module.read_int(self.raw_address + Offsets["FramePositionOffsetX"])
+            return self._read_udim2(self.raw_address + Offsets["FramePositionX"])
 
-                y = self.memory_module.read_float(self.raw_address + Offsets["FramePositionY"])
-                y_offset = self.memory_module.read_int(self.raw_address + Offsets["FramePositionOffsetY"])
+    @Position.setter
+    def Position(self, value):
+        className = self.ClassName
+        
+        self._ensure_writable()
+        if "part" in className.lower():
+            vec = self._as_vector3(value, "Position")
+            self.memory_module.write_floats(
+                self.primitive_address + Offsets["Position"],
+                (vec.X, vec.Y, vec.Z)
+            )
 
-                return UDim2(x, x_offset, y, y_offset)
-            except (KeyError, OSError) as e:
-                print(f"Error reading position: {e}")
-                return (0.0, 0, 0.0, 0)
+        elif className == "Camera":
+            vec = self._as_vector3(value, "Position")
+            self.memory_module.write_floats(
+                self.raw_address + Offsets["CameraPos"],
+                (vec.X, vec.Y, vec.Z)
+            )
+
+        else:
+            udim2_value = self._as_udim2(value, "Position")
+            self._write_udim2(self.raw_address + Offsets["FramePositionX"], udim2_value)
 
     @property
     def Velocity(self):
@@ -111,19 +255,40 @@ class RBXInstance:
         
         return None
 
+    @Velocity.setter
+    def Velocity(self, value):
+        className = self.ClassName
+        if "part" not in className.lower():
+            raise AttributeError("Velocity can only be written for BasePart-derived instances.")
+        
+        vec = self._as_vector3(value, "Velocity")
+        
+        self._ensure_writable()
+        self.memory_module.write_floats(
+            self.primitive_address + Offsets["Velocity"],
+            (vec.X, vec.Y, vec.Z)
+        )
+
     @property
     def Size(self):
         if "part" in self.ClassName.lower():
             size_vector3 = self.memory_module.read_floats(self.primitive_address + Offsets["PartSize"], 3)
             return Vector3(*size_vector3)
         else:
-            try:
-                x = self.memory_module.read_float(self.raw_address + Offsets["FrameSizeX"])
-                y = self.memory_module.read_float(self.raw_address + Offsets["FrameSizeY"])
-                return (x, y)
-            except (KeyError, OSError) as e:
-                print(f"Error reading position: {e}")
-                return (0.0, 0.0)
+            return self._read_udim2(self.raw_address + Offsets["FrameSizeX"])
+
+    @Size.setter
+    def Size(self, value):
+        self._ensure_writable()
+        if "part" in self.ClassName.lower():
+            vec = self._as_vector3(value, "Size")
+            self.memory_module.write_floats(
+                self.primitive_address + Offsets["PartSize"],
+                (vec.X, vec.Y, vec.Z)
+            )
+        else:
+            gui_size = self._as_udim2(value, "Size")
+            self._write_udim2(self.raw_address + Offsets["FrameSizeX"], gui_size)
 
     # XXXXValue props #
     @property
@@ -148,6 +313,33 @@ class RBXInstance:
             return RBXInstance(object_address, self.memory_module)
         
         return None
+
+    @Value.setter
+    def Value(self, new_value):
+        self._ensure_writable()
+        classname = self.ClassName
+        value_address = self.raw_address + Offsets["Value"]
+
+        if classname == "StringValue":
+            self._write_rbx_string(value_address, str(new_value))
+        elif classname == "IntValue":
+            self.memory_module.write_int(value_address, int(new_value))
+        elif classname == "NumberValue":
+            self.memory_module.write_double(value_address, float(new_value))
+        elif classname == "BoolValue":
+            self.memory_module.write_bool(value_address, bool(new_value))
+        elif classname == "ObjectValue":
+            if new_value is None:
+                target = 0
+            elif isinstance(new_value, RBXInstance):
+                target = new_value.raw_address
+            elif isinstance(new_value, int):
+                target = new_value
+            else:
+                raise TypeError("ObjectValue.Value must be set to an RBXInstance, int address, or None.")
+            self.memory_module.write_long(value_address, target)
+        else:
+            raise AttributeError(f"Writing Value is not supported for class {classname}.")
     
     # text props #
     @property
@@ -157,6 +349,12 @@ class RBXInstance:
         
         return None
 
+    @Text.setter
+    def Text(self, value: str):
+        if "text" not in self.ClassName.lower():
+            raise AttributeError("Text is not available on this instance.")
+        self._write_rbx_string(self.raw_address + Offsets["Text"], str(value))
+
     # humanoid props #
     @property
     def WalkSpeed(self):
@@ -165,12 +363,28 @@ class RBXInstance:
         
         return self.memory_module.read_float(self.raw_address + Offsets["WalkSpeed"])
 
+    @WalkSpeed.setter
+    def WalkSpeed(self, value: float):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("WalkSpeed is only available on Humanoid instances.")
+        self._ensure_writable()
+
+        self.memory_module.write_float(self.raw_address + Offsets["WalkSpeed"], float(value))
+
     @property
     def JumpPower(self):
         if self.ClassName != "Humanoid":
             return None
         
         return self.memory_module.read_float(self.raw_address + Offsets["JumpPower"])
+
+    @JumpPower.setter
+    def JumpPower(self, value: float):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("JumpPower is only available on Humanoid instances.")
+        self._ensure_writable()
+
+        self.memory_module.write_float(self.raw_address + Offsets["JumpPower"], float(value))
         
     @property
     def Health(self):
@@ -179,12 +393,28 @@ class RBXInstance:
         
         return self.memory_module.read_float(self.raw_address + Offsets["Health"])
 
+    @Health.setter
+    def Health(self, value: float):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("Health is only available on Humanoid instances.")
+        self._ensure_writable()
+
+        self.memory_module.write_float(self.raw_address + Offsets["Health"], float(value))
+
     @property
     def MaxHealth(self):
         if self.ClassName != "Humanoid":
             return None
         
         return self.memory_module.read_float(self.raw_address + Offsets["MaxHealth"])
+
+    @MaxHealth.setter
+    def MaxHealth(self, value: float):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("MaxHealth is only available on Humanoid instances.")
+        self._ensure_writable()
+
+        self.memory_module.write_float(self.raw_address + Offsets["MaxHealth"], float(value))
 
     # model props #
     @property
@@ -197,6 +427,22 @@ class RBXInstance:
             return None
 
         return RBXInstance(parent_pointer, self.memory_module)
+
+    @PrimaryPart.setter
+    def PrimaryPart(self, value):
+        if self.ClassName != "Model":
+            raise AttributeError("PrimaryPart is only available on Model instances.")
+        self._ensure_writable()
+
+        if value is None:
+            target = 0
+        elif isinstance(value, RBXInstance):
+            target = value.raw_address
+        elif isinstance(value, int):
+            target = value
+        else:
+            raise TypeError("PrimaryPart must be set to an RBXInstance, int address, or None.")
+        self.memory_module.write_long(self.raw_address + Offsets["PrimaryPart"], target)
     
     # functions #
     def GetChildren(self):
@@ -301,6 +547,10 @@ class PlayerClass(RBXInstance):
     def DisplayName(self):
         return self.memory_module.read_string(self.raw_address + Offsets["DisplayName"])
 
+    @DisplayName.setter
+    def DisplayName(self, value: str):
+        self._write_rbx_string(self.raw_address + Offsets["DisplayName"], str(value))
+
     @property
     def UserId(self):
         return self.memory_module.read_long(self.raw_address + Offsets["UserId"])
@@ -330,15 +580,33 @@ class CameraClass(RBXInstance):
     @property
     def FieldOfView(self):
         return self.FieldOfViewRadians * (180/math.pi)
+
+    @FieldOfView.setter
+    def FieldOfView(self, value: float):
+        self.FieldOfViewRadians = float(value) * (math.pi / 180)
     
     @property
     def FieldOfViewRadians(self):
         return self.memory_module.read_float(self.raw_address + Offsets["FOV"])
+
+    @FieldOfViewRadians.setter
+    def FieldOfViewRadians(self, value: float):
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + Offsets["FOV"], float(value))
     
     @property
     def ViewportSize(self):
         SizeData = self.memory_module.read_floats(self.raw_address + Offsets["ViewportSize"], 2)
         return Vector2(*SizeData)
+
+    @ViewportSize.setter
+    def ViewportSize(self, value):
+        vec = self._as_vector2(value, "ViewportSize")
+        self._ensure_writable()
+        self.memory_module.write_floats(
+            self.raw_address + Offsets["ViewportSize"],
+            (vec.X, vec.Y)
+        )
 
 # Service #
 class ServiceBase:
