@@ -60,25 +60,48 @@ class RBXInstance:
 
         if not isinstance(value, str):
             raise TypeError("value must be a string.")
+
+        if not isinstance(address, int):
+            raise TypeError("address must be an int.")
         
         if address == 0:
             raise ValueError("String address is null; cannot write.")
-        
-        encoded = value.encode('utf-8')
-        if len(encoded) > 15:
-            raise ValueError("String too long (max 15 UTF-8 bytes supported for inline Roblox strings).")
-        
-        current_length = self.memory_module.read_int(address + 0x10)
-        if current_length > 15:
-            raise ValueError("Existing string is heap allocated; inline overwrite is not supported.")
-        
-        padded = encoded + b'\x00'
-        if len(padded) < 16:
-            padded += b'\x00' * (16 - len(padded))
-        
-        self.memory_module.write(address, padded[:16])
-        self.memory_module.write_int(address + 0x10, len(encoded))
 
+        encoded = value.encode('utf-8')
+        new_length = len(encoded)
+
+        length_address = address + 0x10
+        capacity_address = address + 0x18
+        capacity = self.memory_module.read_int(capacity_address)
+
+        if capacity <= 15:
+            if new_length > 15:
+                raise ValueError("String too long (max 15 UTF-8 bytes supported for inline Roblox strings).")
+
+            padded = encoded + b'\x00'
+            if len(padded) < 16:
+                padded += b'\x00' * (16 - len(padded))
+
+            self.memory_module.write(address, padded[:16])
+            self.memory_module.write_int(length_address, new_length)
+            return
+
+        string_pointer = self.memory_module.read_long(address)
+
+        if string_pointer == 0:
+            raise RuntimeError("String has null heap pointer; ensure the value is preallocated.")
+
+        if new_length > capacity:
+            raise ValueError(f"String length {new_length} exceeds allocated capacity {capacity}.")
+
+        if new_length:
+            self.memory_module.write(string_pointer, encoded)
+            if new_length < capacity:
+                self.memory_module.write(string_pointer + new_length, b"\x00")
+        else:
+            self.memory_module.write(string_pointer, b"\x00")
+
+        self.memory_module.write_int(length_address, new_length)
 
     def _read_udim2(self, address: int) -> UDim2:
         if not isinstance(address, int):
@@ -341,6 +364,14 @@ class RBXInstance:
         else:
             raise AttributeError(f"Writing Value is not supported for class {classname}.")
     
+    @property
+    def text_capacity(self) -> int:
+        if self.ClassName != "StringValue":
+            raise AttributeError("Capacity is only available on StringValue instances.")
+
+        value_address = self.raw_address + Offsets["Value"]
+        return self.memory_module.read_int(value_address + 0x18)
+
     # text props #
     @property
     def Text(self):
