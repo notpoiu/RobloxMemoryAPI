@@ -24,6 +24,16 @@ if client.failed:
 # Get the client's data model
 game = client.DataModel
 
+# Refresh hooks let you react when Roblox swaps between home screen and game.
+def on_refresh(new_game):
+    if new_game is None:
+        print("[Refresh] DataModel became unavailable.")
+    else:
+        print(f"[Refresh] DataModel refreshed. New PlaceId: {new_game.PlaceId}")
+
+# Register callback (optional invoke to run immediately with the current model).
+game.bind_to_refresh(on_refresh, invoke_if_ready=True)
+
 LocalPlayer = game.Players.LocalPlayer
 
 # Print some info about the game

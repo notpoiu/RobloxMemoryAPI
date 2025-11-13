@@ -238,24 +238,24 @@ class EvasiveProcess:
         return bytes_written.value
 
     # numbers #
-    def read_int(self, address: int) -> int:
-        buffer = self.read(address, 4)
+    def read_int(self, address: int, offset: int = 0) -> int:
+        buffer = self.read(address + offset, 4)
         return int.from_bytes(buffer, 'little') if len(buffer) == 4 else 0
         
-    def read_long(self, address: int) -> int:
-        buffer = self.read(address, 8)
+    def read_long(self, address: int, offset: int = 0) -> int:
+        buffer = self.read(address + offset, 8)
         return int.from_bytes(buffer, 'little') if len(buffer) == 8 else 0
     
-    def read_double(self, address: int) -> float:
+    def read_double(self, address: int, offset: int = 0) -> float:
         try:
-            double_bytes = self.read(address, 8)
+            double_bytes = self.read(address + offset, 8)
             return struct.unpack('<d', double_bytes)[0] if len(double_bytes) == 8 else 0.0
         except (OSError, struct.error):
             return 0.0
 
-    def read_float(self, address: int) -> float:
+    def read_float(self, address: int, offset: int = 0) -> float:
         try:
-            float_bytes = self.read(address, 4)
+            float_bytes = self.read(address + offset, 4)
             return struct.unpack('f', float_bytes)[0] if len(float_bytes) == 4 else 0.0
         except (OSError, struct.error):
             return 0.0
@@ -295,9 +295,9 @@ class EvasiveProcess:
             self.write(address, packed)
 
     # bool #
-    def read_bool(self, address: int) -> bool:
+    def read_bool(self, address: int, offset: int = 0) -> bool:
         try:
-            bool_byte = self.read(address, 1)
+            bool_byte = self.read(address + offset, 1)
             if not bool_byte: return False
             return bool(int.from_bytes(bool_byte, 'little'))
         except OSError:
@@ -319,7 +319,10 @@ class EvasiveProcess:
             data += b'\x00'
         self.write(address, data)
         
-    def read_string(self, address: int) -> str:
+    def read_string(self, address: int, offset: int = 0) -> str:
+        if offset != 0:
+            address += offset
+        
         string_length = self.read_int(address + 0x10)
         if string_length <= 15:
             return self.read_raw_string(address, string_length)
@@ -327,6 +330,17 @@ class EvasiveProcess:
             string_data_pointer = self.read_long(address)
             return self.read_raw_string(string_data_pointer, string_length) if string_data_pointer else ""
     
+    # pointers #
+    def get_pointer(self, address: int, offset: int = 0) -> int:
+        return int.from_bytes(self.read(address + offset, 8), 'little')
+
+    def get_address(self, address: int, pointer: bool) -> int:
+        if pointer:
+            return self.get_pointer(self.base + address)
+        
+        return self.base + address
+
+
     #########
     def close(self):
         if self.handle and self.handle.value != 0:

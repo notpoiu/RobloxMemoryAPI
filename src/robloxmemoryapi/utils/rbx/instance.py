@@ -2,11 +2,21 @@ from ..offsets import *
 import time, math
 from .datastructures import *
 
+
 # Normal Classes #
 class RBXInstance:
+    ROTATION_MATRIX_FLOATS = 9
+
     def __init__(self, address, memory_module):
         self.raw_address = address
         self.memory_module = memory_module
+        self.instance_offsets = Offsets["Instance"]
+        self.basepart_offsets = Offsets["BasePart"]
+        self.camera_offsets = Offsets["Camera"]
+        self.gui_offsets = Offsets["GuiObject"]
+        self.misc_offsets = Offsets["Misc"]
+        self.humanoid_offsets = Offsets["Humanoid"]
+        self.model_offsets = Offsets["Model"]
 
     def __eq__(self, value):
         return value.raw_address == self.raw_address
@@ -133,15 +143,19 @@ class RBXInstance:
     # useful pointer stuff #
     @property
     def primitive_address(self):
-        part_primitive_pointer = self.raw_address + Offsets["Primitive"]
-        part_primitive = int.from_bytes(self.memory_module.read(part_primitive_pointer, 8), 'little')
-        return part_primitive
+        return self.memory_module.get_pointer(
+            self.raw_address,
+            self.basepart_offsets["Primitive"]
+        )
     
 
     # props #
     @property
     def Parent(self):
-        parent_pointer = int.from_bytes(self.memory_module.read(self.raw_address + Offsets["Parent"], 8), 'little')
+        parent_pointer = self.memory_module.get_pointer(
+            self.raw_address,
+            self.instance_offsets["Parent"]
+        )
         if parent_pointer == 0:
             return None
         
@@ -158,30 +172,37 @@ class RBXInstance:
         else:
             raise TypeError("Parent must be set to an RBXInstance, int address, or None.")
         self._ensure_writable()
-        self.memory_module.write_long(self.raw_address + Offsets["Parent"], target)
+        self.memory_module.write_long(
+            self.raw_address + self.instance_offsets["Parent"],
+            target
+        )
 
     @property
     def Name(self):
-        name_address_pointer = self.raw_address + Offsets["Name"]
-        name_address = int.from_bytes(self.memory_module.read(name_address_pointer, 8), 'little')
+        name_address = self.memory_module.get_pointer(
+            self.raw_address,
+            self.instance_offsets["Name"]
+        )
         return self.memory_module.read_string(name_address)
     
     @Name.setter
     def Name(self, value: str):
         self._ensure_writable()
-        name_address_pointer = self.raw_address + Offsets["Name"]
-        name_address = int.from_bytes(self.memory_module.read(name_address_pointer, 8), 'little')
+        name_address = self.memory_module.get_pointer(
+            self.raw_address,
+            self.instance_offsets["Name"]
+        )
         self._write_rbx_string(name_address, value)
     
     @property
     def ClassName(self):
-        class_descriptor_address = int.from_bytes(
-            self.memory_module.read(self.raw_address + Offsets["ClassDescriptor"], 8),
-            'little'
+        class_descriptor_address = self.memory_module.get_pointer(
+            self.raw_address,
+            self.instance_offsets["ClassDescriptor"]
         )
-        class_name_address = int.from_bytes(
-            self.memory_module.read(class_descriptor_address + Offsets["ClassDescriptorToClassName"], 8),
-            'little'
+        class_name_address = self.memory_module.get_pointer(
+            class_descriptor_address,
+            self.instance_offsets["ClassName"]
         )
         return self.memory_module.read_string(class_name_address)
     
@@ -189,19 +210,30 @@ class RBXInstance:
     def CFrame(self):
         className = self.ClassName
 
-        CFrameDataMatriciesLength = 12 # 3x4 matrix
-
         if "part" in className.lower():
-            CFrameData = self.memory_module.read_floats(self.primitive_address + Offsets["CFrame"], CFrameDataMatriciesLength)
+            CFrameRotation = self.memory_module.read_floats(
+                self.primitive_address + self.basepart_offsets["Rotation"],
+                self.ROTATION_MATRIX_FLOATS
+            )
+            PositionData = self.memory_module.read_floats(
+                self.primitive_address + self.basepart_offsets["Position"],
+                3
+            )
         elif className == "Camera":
-            CFrameData = self.memory_module.read_floats(self.raw_address + Offsets["CameraCFrame"], CFrameDataMatriciesLength)
+            CFrameRotation = self.memory_module.read_floats(
+                self.raw_address + self.camera_offsets["Rotation"],
+                self.ROTATION_MATRIX_FLOATS
+            )
+            PositionData = self.memory_module.read_floats(
+                self.raw_address + self.camera_offsets["Position"],
+                3
+            )
         else:
             return None
         
-        RightVectorData = get_flat_matrix_column(CFrameData, 0)
-        UpVectorData = get_flat_matrix_column(CFrameData, 1)
-        LookVectorData = get_flat_matrix_column(CFrameData, 2, invert_values=True)
-        PositionData = CFrameData[9:12]
+        RightVectorData = get_flat_matrix_column(CFrameRotation, 0)
+        UpVectorData = get_flat_matrix_column(CFrameRotation, 1)
+        LookVectorData = get_flat_matrix_column(CFrameRotation, 2, invert_values=True)
 
         return CFrame(
             Vector3(*PositionData),
@@ -219,61 +251,73 @@ class RBXInstance:
         matrix_data = [
             value.RightVector.X, value.UpVector.X, -value.LookVector.X,
             value.RightVector.Y, value.UpVector.Y, -value.LookVector.Y,
-            value.RightVector.Z, value.UpVector.Z, -value.LookVector.Z,
-            value.Position.X, value.Position.Y, value.Position.Z
+            value.RightVector.Z, value.UpVector.Z, -value.LookVector.Z
         ]
+        position_data = (value.Position.X, value.Position.Y, value.Position.Z)
 
         className = self.ClassName
         if "part" in className.lower():
-            base_address = self.primitive_address + Offsets["CFrame"]
+            rotation_address = self.primitive_address + self.basepart_offsets["Rotation"]
+            position_address = self.primitive_address + self.basepart_offsets["Position"]
         elif className == "Camera":
-            base_address = self.raw_address + Offsets["CameraCFrame"]
+            rotation_address = self.raw_address + self.camera_offsets["Rotation"]
+            position_address = self.raw_address + self.camera_offsets["Position"]
         else:
             raise AttributeError("CFrame cannot be written for this instance type.")
 
-        self.memory_module.write_floats(base_address, matrix_data)
+        self.memory_module.write_floats(rotation_address, matrix_data)
+        self.memory_module.write_floats(position_address, position_data)
 
     @property
     def Position(self):
-        className = self.ClassName
-        if "part" in className.lower():
-            position_vector3 = self.memory_module.read_floats(self.primitive_address + Offsets["Position"], 3)
+        className = self.ClassName.lower()
+        if "part" in className:
+            position_vector3 = self.memory_module.read_floats(
+                self.primitive_address + self.basepart_offsets["Position"],
+                3
+            )
             return Vector3(*position_vector3)
-        elif className == "Camera":
-            position_vector3 = self.memory_module.read_floats(self.raw_address + Offsets["CameraPos"], 3)
+        elif className == "camera":
+            position_vector3 = self.memory_module.read_floats(
+                self.raw_address + self.camera_offsets["Position"],
+                3
+            )
             return Vector3(*position_vector3)
         else:
-            return self._read_udim2(self.raw_address + Offsets["FramePositionX"])
+            return self._read_udim2(self.raw_address + self.gui_offsets["Position"])
 
     @Position.setter
     def Position(self, value):
-        className = self.ClassName
+        className = self.ClassName.lower()
         
         self._ensure_writable()
-        if "part" in className.lower():
+        if "part" in className:
             vec = self._as_vector3(value, "Position")
             self.memory_module.write_floats(
-                self.primitive_address + Offsets["Position"],
+                self.primitive_address + self.basepart_offsets["Position"],
                 (vec.X, vec.Y, vec.Z)
             )
 
-        elif className == "Camera":
+        elif className == "camera":
             vec = self._as_vector3(value, "Position")
             self.memory_module.write_floats(
-                self.raw_address + Offsets["CameraPos"],
+                self.raw_address + self.camera_offsets["Position"],
                 (vec.X, vec.Y, vec.Z)
             )
 
         else:
             udim2_value = self._as_udim2(value, "Position")
-            self._write_udim2(self.raw_address + Offsets["FramePositionX"], udim2_value)
+            self._write_udim2(self.raw_address + self.gui_offsets["Position"], udim2_value)
 
     @property
     def Velocity(self):
         className = self.ClassName
 
         if "part" in className.lower():
-            velocity_vector3 = self.memory_module.read_floats(self.primitive_address + Offsets["Velocity"], 3)
+            velocity_vector3 = self.memory_module.read_floats(
+                self.primitive_address + self.basepart_offsets["AssemblyLinearVelocity"],
+                3
+            )
             return Vector3(*velocity_vector3)
         
         return None
@@ -288,17 +332,20 @@ class RBXInstance:
         
         self._ensure_writable()
         self.memory_module.write_floats(
-            self.primitive_address + Offsets["Velocity"],
+            self.primitive_address + self.basepart_offsets["AssemblyLinearVelocity"],
             (vec.X, vec.Y, vec.Z)
         )
 
     @property
     def Size(self):
         if "part" in self.ClassName.lower():
-            size_vector3 = self.memory_module.read_floats(self.primitive_address + Offsets["PartSize"], 3)
+            size_vector3 = self.memory_module.read_floats(
+                self.primitive_address + self.basepart_offsets["Size"],
+                3
+            )
             return Vector3(*size_vector3)
         else:
-            return self._read_udim2(self.raw_address + Offsets["FrameSizeX"])
+            return self._read_udim2(self.raw_address + self.gui_offsets["Size"])
 
     @Size.setter
     def Size(self, value):
@@ -306,32 +353,35 @@ class RBXInstance:
         if "part" in self.ClassName.lower():
             vec = self._as_vector3(value, "Size")
             self.memory_module.write_floats(
-                self.primitive_address + Offsets["PartSize"],
+                self.primitive_address + self.basepart_offsets["Size"],
                 (vec.X, vec.Y, vec.Z)
             )
         else:
             gui_size = self._as_udim2(value, "Size")
-            self._write_udim2(self.raw_address + Offsets["FrameSizeX"], gui_size)
+            self._write_udim2(self.raw_address + self.gui_offsets["Size"], gui_size)
 
     # XXXXValue props #
     @property
     def Value(self):
         classname = self.ClassName 
+        value_address = self.raw_address + self.misc_offsets["Value"]
         if classname == "StringValue":
-            return self.memory_module.read_string(self.raw_address + Offsets["Value"])
+            return self.memory_module.read_string(value_address)
         
         elif classname == "IntValue":
-            return self.memory_module.read_int(self.raw_address + Offsets["Value"])
+            return self.memory_module.read_int(value_address)
         
         elif classname == "NumberValue":
-            return self.memory_module.read_double(self.raw_address + Offsets["Value"])
+            return self.memory_module.read_double(value_address)
         
         elif classname == "BoolValue":
-            return self.memory_module.read_bool(self.raw_address + Offsets["Value"])
+            return self.memory_module.read_bool(value_address)
         
         elif classname == "ObjectValue":
-            object_pointer = self.raw_address + Offsets["Value"]
-            object_address = int.from_bytes(self.memory_module.read(object_pointer, 8), 'little')
+            object_address = self.memory_module.get_pointer(
+                self.raw_address,
+                self.misc_offsets["Value"]
+            )
 
             return RBXInstance(object_address, self.memory_module)
         
@@ -341,7 +391,7 @@ class RBXInstance:
     def Value(self, new_value):
         self._ensure_writable()
         classname = self.ClassName
-        value_address = self.raw_address + Offsets["Value"]
+        value_address = self.raw_address + self.misc_offsets["Value"]
 
         if classname == "StringValue":
             self._write_rbx_string(value_address, str(new_value))
@@ -369,14 +419,17 @@ class RBXInstance:
         if self.ClassName != "StringValue":
             raise AttributeError("Capacity is only available on StringValue instances.")
 
-        value_address = self.raw_address + Offsets["Value"]
+        value_address = self.raw_address + self.misc_offsets["Value"]
         return self.memory_module.read_int(value_address + 0x18)
 
     # text props #
     @property
     def Text(self):
         if "text" in self.ClassName.lower():
-            return self.memory_module.read_string(self.raw_address + Offsets["Text"])
+            return self.memory_module.read_string(
+                self.raw_address,
+                self.gui_offsets["Text"]
+            )
         
         return None
 
@@ -384,7 +437,10 @@ class RBXInstance:
     def Text(self, value: str):
         if "text" not in self.ClassName.lower():
             raise AttributeError("Text is not available on this instance.")
-        self._write_rbx_string(self.raw_address + Offsets["Text"], str(value))
+        self._write_rbx_string(
+            self.raw_address + self.gui_offsets["Text"],
+            str(value)
+        )
 
     # humanoid props #
     @property
@@ -392,7 +448,10 @@ class RBXInstance:
         if self.ClassName != "Humanoid":
             return None
         
-        return self.memory_module.read_float(self.raw_address + Offsets["WalkSpeed"])
+        return self.memory_module.read_float(
+            self.raw_address,
+            self.humanoid_offsets["Walkspeed"]
+        )
 
     @WalkSpeed.setter
     def WalkSpeed(self, value: float):
@@ -400,14 +459,20 @@ class RBXInstance:
             raise AttributeError("WalkSpeed is only available on Humanoid instances.")
         self._ensure_writable()
 
-        self.memory_module.write_float(self.raw_address + Offsets["WalkSpeed"], float(value))
+        self.memory_module.write_float(
+            self.raw_address + self.humanoid_offsets["Walkspeed"],
+            float(value)
+        )
 
     @property
     def JumpPower(self):
         if self.ClassName != "Humanoid":
             return None
         
-        return self.memory_module.read_float(self.raw_address + Offsets["JumpPower"])
+        return self.memory_module.read_float(
+            self.raw_address,
+            self.humanoid_offsets["JumpPower"]
+        )
 
     @JumpPower.setter
     def JumpPower(self, value: float):
@@ -415,14 +480,20 @@ class RBXInstance:
             raise AttributeError("JumpPower is only available on Humanoid instances.")
         self._ensure_writable()
 
-        self.memory_module.write_float(self.raw_address + Offsets["JumpPower"], float(value))
+        self.memory_module.write_float(
+            self.raw_address + self.humanoid_offsets["JumpPower"],
+            float(value)
+        )
         
     @property
     def Health(self):
         if self.ClassName != "Humanoid":
             return None
         
-        return self.memory_module.read_float(self.raw_address + Offsets["Health"])
+        return self.memory_module.read_float(
+            self.raw_address,
+            self.humanoid_offsets["Health"]
+        )
 
     @Health.setter
     def Health(self, value: float):
@@ -430,14 +501,20 @@ class RBXInstance:
             raise AttributeError("Health is only available on Humanoid instances.")
         self._ensure_writable()
 
-        self.memory_module.write_float(self.raw_address + Offsets["Health"], float(value))
+        self.memory_module.write_float(
+            self.raw_address + self.humanoid_offsets["Health"],
+            float(value)
+        )
 
     @property
     def MaxHealth(self):
         if self.ClassName != "Humanoid":
             return None
         
-        return self.memory_module.read_float(self.raw_address + Offsets["MaxHealth"])
+        return self.memory_module.read_float(
+            self.raw_address,
+            self.humanoid_offsets["MaxHealth"]
+        )
 
     @MaxHealth.setter
     def MaxHealth(self, value: float):
@@ -445,7 +522,10 @@ class RBXInstance:
             raise AttributeError("MaxHealth is only available on Humanoid instances.")
         self._ensure_writable()
 
-        self.memory_module.write_float(self.raw_address + Offsets["MaxHealth"], float(value))
+        self.memory_module.write_float(
+            self.raw_address + self.humanoid_offsets["MaxHealth"],
+            float(value)
+        )
 
     # model props #
     @property
@@ -453,7 +533,10 @@ class RBXInstance:
         if self.ClassName != "Model":
             return None
         
-        parent_pointer = int.from_bytes(self.memory_module.read(self.raw_address + Offsets["PrimaryPart"], 8), 'little')
+        parent_pointer = self.memory_module.get_pointer(
+            self.raw_address,
+            self.model_offsets["PrimaryPart"]
+        )
         if parent_pointer == 0:
             return None
 
@@ -473,22 +556,30 @@ class RBXInstance:
             target = value
         else:
             raise TypeError("PrimaryPart must be set to an RBXInstance, int address, or None.")
-        self.memory_module.write_long(self.raw_address + Offsets["PrimaryPart"], target)
+        self.memory_module.write_long(
+            self.raw_address + self.model_offsets["PrimaryPart"],
+            target
+        )
     
     # functions #
     def GetChildren(self):
         children = []
-        children_pointer = int.from_bytes(self.memory_module.read(self.raw_address + Offsets["Children"], 8), 'little')
+        children_pointer = self.memory_module.get_pointer(
+            self.raw_address,
+            self.instance_offsets["ChildrenStart"]
+        )
         
         if children_pointer == 0:
             return children
         
-        children_start = int.from_bytes(self.memory_module.read(children_pointer, 8), 'little')
-        children_end = int.from_bytes(self.memory_module.read(children_pointer + Offsets["ChildrenEnd"], 8), 'little')
+        children_start = self.memory_module.get_pointer(children_pointer)
+        children_end = self.memory_module.get_pointer(
+            children_pointer,
+            self.instance_offsets["ChildrenEnd"]
+        )
 
         for child_address in range(children_start, children_end, 0x10):
-            child_pointer_bytes = self.memory_module.read(child_address, 8)
-            child_pointer = int.from_bytes(child_pointer_bytes, 'little')
+            child_pointer = self.memory_module.get_pointer(child_address)
             
             if child_pointer != 0:
                 children.append(RBXInstance(child_pointer, self.memory_module))
@@ -556,6 +647,7 @@ class PlayerClass(RBXInstance):
     def __init__(self, memory_module, player: RBXInstance):
         super().__init__(player.raw_address, memory_module)
         self.memory_module = memory_module
+        self.offset_base = Offsets["Player"]
 
         try:
             if player.ClassName != "Player":
@@ -568,35 +660,53 @@ class PlayerClass(RBXInstance):
     # props #
     @property
     def Character(self) -> RBXInstance | None:
-        addr = int.from_bytes(self.memory_module.read(self.instance.raw_address + Offsets["Character"], 8), 'little')
-        if addr == 0:
+        CharacterAddress = self.memory_module.get_pointer(
+            self.instance.raw_address,
+            self.offset_base["ModelInstance"]
+        )
+        
+        if CharacterAddress == 0:
             return None
         
-        return RBXInstance(addr, self.memory_module)
+        return RBXInstance(CharacterAddress, self.memory_module)
     
     @property
     def DisplayName(self):
-        return self.memory_module.read_string(self.raw_address + Offsets["DisplayName"])
+        return self.memory_module.read_string(
+            self.raw_address,
+            self.offset_base["DisplayName"]
+        )
 
     @DisplayName.setter
     def DisplayName(self, value: str):
-        self._write_rbx_string(self.raw_address + Offsets["DisplayName"], str(value))
+        self._write_rbx_string(
+            self.raw_address + self.offset_base["DisplayName"],
+            str(value)
+        )
 
     @property
     def UserId(self):
-        return self.memory_module.read_long(self.raw_address + Offsets["UserId"])
+        return self.memory_module.read_long(
+            self.raw_address,
+            self.offset_base["UserId"]
+        )
 
     @property
     def Team(self):
-        addr = int.from_bytes(self.memory_module.read(self.instance.raw_address + Offsets["Team"], 8), 'little')
-        if addr == 0:
+        TeamAddress = self.memory_module.get_pointer(
+            self.instance.raw_address,
+            self.offset_base["Team"]
+        )
+
+        if TeamAddress == 0:
             return None
         
-        return RBXInstance(addr, self.memory_module)
+        return RBXInstance(TeamAddress, self.memory_module)
 
 class CameraClass(RBXInstance):
     def __init__(self, memory_module, camera: RBXInstance):
         super().__init__(camera.raw_address, memory_module)
+        self.offset_base = Offsets["Camera"]
         self.memory_module = memory_module
 
         try:
@@ -618,22 +728,33 @@ class CameraClass(RBXInstance):
     
     @property
     def FieldOfViewRadians(self):
-        return self.memory_module.read_float(self.raw_address + Offsets["FOV"])
+        return self.memory_module.read_float(
+            self.raw_address,
+            self.offset_base["FieldOfView"]
+        )
 
     @FieldOfViewRadians.setter
     def FieldOfViewRadians(self, value: float):
         self._ensure_writable()
-        self.memory_module.write_float(self.raw_address + Offsets["FOV"], float(value))
+        self.memory_module.write_float(
+            self.raw_address + self.offset_base["FieldOfView"],
+            float(value)
+        )
     
     @property
     def ViewportSize(self):
-        SizeData = self.memory_module.read_floats(self.raw_address + Offsets["ViewportSize"], 2)
+        SizeData = self.memory_module.read_floats(
+            self.raw_address + Offsets["ViewportSize"],
+            2
+        )
+
         return Vector2(*SizeData)
 
     @ViewportSize.setter
     def ViewportSize(self, value):
         vec = self._as_vector2(value, "ViewportSize")
         self._ensure_writable()
+
         self.memory_module.write_floats(
             self.raw_address + Offsets["ViewportSize"],
             (vec.X, vec.Y)
@@ -657,53 +778,146 @@ class DataModel(ServiceBase):
     def __init__(self, memory_module):
         super().__init__()
         self.memory_module = memory_module
-
+        self.offset_base = Offsets["DataModel"]
         self.error = None
+        self._refresh_callbacks = []
+        self._last_datamodel_address = 0
+        self.refresh_datamodel()
+
+    def __getattr__(self, name):
+        if not self._ensure_instance():
+            raise AttributeError("DataModel instance is unavailable.")
+        return super().__getattr__(name)
+
+    def refresh_datamodel(self):
+        changed = False
         try:
-            if Offsets.get("DataModelPointer") is not None:
-                datamodel_addr = Offsets["DataModelPointer"]
-            else:
-                fake_dm_pointer_offset = Offsets["FakeDataModelPointer"]
-                fake_dm_pointer_addr = memory_module.base + fake_dm_pointer_offset
-                fake_dm_pointer_val = int.from_bytes(memory_module.read(fake_dm_pointer_addr, 8), 'little')
+            fake_datamodel_ptr = self.memory_module.get_address(Offsets["FakeDataModel"]["Pointer"], pointer=True)
+            datamodel_address_ptr = self.memory_module.get_pointer(fake_datamodel_ptr, Offsets["FakeDataModel"]["RealDataModel"])
 
-                dm_to_datamodel_offset = Offsets["FakeDataModelToDataModel"]
-                datamodel_addr_ptr = fake_dm_pointer_val + dm_to_datamodel_offset
-                datamodel_addr = int.from_bytes(memory_module.read(datamodel_addr_ptr, 8), 'little')
-
-            datamodel_instance = RBXInstance(datamodel_addr, memory_module)
-
-            if datamodel_instance.Name != "Ugc":
+            if datamodel_address_ptr == 0:
+                if self.instance is not None:
+                    changed = True
+                self.instance = None
                 self.failed = True
+                self._last_datamodel_address = 0
+                if changed:
+                    self._dispatch_refresh(None)
+                return
+
+            if self.instance is not None and datamodel_address_ptr == self.instance.raw_address:
+                if self.failed:
+                    self.failed = False
+                return
+
+            datamodel_instance = RBXInstance(datamodel_address_ptr, self.memory_module)
+
+            if datamodel_instance.ClassName != "DataModel":
+                self.failed = True
+                if self.instance is not None:
+                    changed = True
+                self.instance = None
+                self._last_datamodel_address = 0
             else:
+                if datamodel_instance.raw_address != self._last_datamodel_address:
+                    changed = True
                 self.instance = datamodel_instance
+                self.failed = False
+                self.error = None
+                self._last_datamodel_address = datamodel_instance.raw_address
         except (KeyError, OSError) as e:
             self.error = e
             self.failed = True
+            self.instance = None
+            if self._last_datamodel_address != 0:
+                changed = True
+            self._last_datamodel_address = 0
+        finally:
+            if changed:
+                self._dispatch_refresh(self.instance)
+
+    def _ensure_instance(self):
+        self.refresh_datamodel()
+        return self.instance is not None and not self.failed
+
+    def bind_to_refresh(self, callback, invoke_if_ready: bool = False):
+        if not callable(callback):
+            raise TypeError("callback must be callable.")
+
+        self._refresh_callbacks.append(callback)
+
+        if invoke_if_ready and self.instance is not None and not self.failed:
+            try:
+                callback(self.instance)
+            except Exception:
+                pass
+
+        return callback
+
+    def unbind_from_refresh(self, callback):
+        try:
+            self._refresh_callbacks.remove(callback)
+        except ValueError:
+            pass
+
+    def _dispatch_refresh(self, instance):
+        for callback in list(self._refresh_callbacks):
+            try:
+                callback(instance)
+            except Exception:
+                continue
 
     @property
     def PlaceId(self):
-        return self.memory_module.read_long(self.raw_address + Offsets["PlaceId"])
+        if not self._ensure_instance():
+            return 0
+
+        return self.memory_module.read_long(
+            self.instance.raw_address,
+            self.offset_base["PlaceId"]
+        )
 
     @property
     def GameId(self):
-        return self.memory_module.read_long(self.raw_address + Offsets["GameId"])
+        if not self._ensure_instance():
+            return 0
+
+        return self.memory_module.read_long(
+            self.instance.raw_address,
+            self.offset_base["GameId"]
+        )
 
     @property
     def JobId(self):
-        return self.memory_module.read_string(self.raw_address + Offsets["JobId"])
+        if not self._ensure_instance():
+            return None
+
+        if self.GameId == 0 or self.PlaceId == 0:
+            return None
+
+        return self.memory_module.read_string(
+            self.instance.raw_address,
+            self.offset_base["JobId"]
+        )
 
     @property
     def Players(self):
+        if not self._ensure_instance():
+            return None
+
         return PlayersService(self.memory_module, self)
 
     @property
     def Workspace(self):
+        if not self._ensure_instance():
+            return None
+
         return WorkspaceService(self.memory_module, self)
 
     # class functions #
     def GetService(self, name):
-        if self.failed: return
+        if not self._ensure_instance():
+            return None
 
         for instance in self.instance.GetChildren():
             if instance.ClassName == name:
@@ -713,12 +927,25 @@ class DataModel(ServiceBase):
 
     # Stuff
     def IsLoaded(self):
-        return self.memory_module.read_bool(self.raw_address + Offsets["GameLoaded"])
+        if not self._ensure_instance():
+            return False
+
+        return self.memory_module.read_bool(
+            self.instance.raw_address,
+            self.offset_base["GameLoaded"]
+        )
+
+    def is_lua_app(self):
+        if not self._ensure_instance():
+            return False
+
+        return self.PlaceId == 0 and self.GameId == 0 and self.Name == "LuaApp"
 
 class PlayersService(ServiceBase):
     def __init__(self, memory_module, game: DataModel):
         super().__init__()
         self.memory_module = memory_module
+        self.offset_base = Offsets["Player"]
 
         try:
             players_instance: RBXInstance = game.GetService("Players")
@@ -733,10 +960,14 @@ class PlayersService(ServiceBase):
     @property
     def LocalPlayer(self) -> RBXInstance | None:
         if self.failed: return
+    
+        LocalPlayerAddress = self.memory_module.get_pointer(
+            self.instance.raw_address,
+            self.offset_base["LocalPlayer"]
+        )
 
-        addr = int.from_bytes(self.memory_module.read(self.instance.raw_address + Offsets["LocalPlayer"], 8), 'little')
-        return PlayerClass(self.memory_module, RBXInstance(addr, self.memory_module))
-
+        return PlayerClass(self.memory_module, RBXInstance(LocalPlayerAddress, self.memory_module))
+    
     def GetPlayers(self):
         players = []
 
@@ -750,7 +981,7 @@ class WorkspaceService(ServiceBase):
     def __init__(self, memory_module, game: DataModel):
         super().__init__()
         self.memory_module = memory_module
-
+        self.offset_base = Offsets["Workspace"]
         try:
             workspace_instance: RBXInstance = game.GetService("Workspace")
             if workspace_instance.ClassName != "Workspace":
@@ -765,8 +996,12 @@ class WorkspaceService(ServiceBase):
     def CurrentCamera(self) -> CameraClass | None:
         if self.failed: return
 
-        addr = int.from_bytes(self.memory_module.read(self.instance.raw_address + Offsets["Camera"], 8), 'little')
-        if addr == 0:
+        CameraAddress = self.memory_module.get_pointer(
+            self.instance.raw_address,
+            self.offset_base["CurrentCamera"]
+        )
+
+        if CameraAddress == 0:
             return None
-        
-        return CameraClass(self.memory_module, RBXInstance(addr, self.memory_module))
+
+        return CameraClass(self.memory_module, RBXInstance(CameraAddress, self.memory_module))
