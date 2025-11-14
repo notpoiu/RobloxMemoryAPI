@@ -1,5 +1,6 @@
 from ..offsets import *
 import time, math
+import threading
 from .datastructures import *
 
 
@@ -775,69 +776,144 @@ class ServiceBase:
         return self.instance.FindFirstChild(name)
 
 class DataModel(ServiceBase):
-    def __init__(self, memory_module):
+    @staticmethod
+    def _coerce_refresh_interval(value):
+        try:
+            interval = float(value)
+        except (TypeError, ValueError):
+            raise TypeError("refresh_interval must be a positive number.")
+
+        if interval <= 0:
+            raise ValueError("refresh_interval must be greater than zero.")
+
+        return interval
+
+    def __init__(self, memory_module, auto_refresh: bool = True, refresh_interval: float = 0.5):
         super().__init__()
         self.memory_module = memory_module
         self.offset_base = Offsets["DataModel"]
         self.error = None
         self._refresh_callbacks = []
         self._last_datamodel_address = 0
+        self._refresh_lock = threading.Lock()
+        self._auto_refresh_thread = None
+        self._auto_refresh_stop_event = None
+        self._auto_refresh_interval = self._coerce_refresh_interval(refresh_interval)
+        self._auto_refresh_enabled = False
         self.refresh_datamodel()
+
+        if auto_refresh:
+            self.start_auto_refresh()
+
+    def __del__(self):
+        try:
+            self.stop_auto_refresh()
+        except Exception:
+            pass
 
     def __getattr__(self, name):
         if not self._ensure_instance():
             raise AttributeError("DataModel instance is unavailable.")
         return super().__getattr__(name)
 
+    def start_auto_refresh(self, interval: float | None = None):
+        if interval is not None:
+            self._auto_refresh_interval = self._coerce_refresh_interval(interval)
+
+        if self._auto_refresh_thread is not None and self._auto_refresh_thread.is_alive():
+            self._auto_refresh_enabled = True
+            return
+
+        stop_event = threading.Event()
+        self._auto_refresh_stop_event = stop_event
+        self._auto_refresh_enabled = True
+        self._auto_refresh_thread = threading.Thread(
+            target=self._auto_refresh_loop,
+            args=(stop_event,),
+            name="DataModelAutoRefresh",
+            daemon=True
+        )
+        self._auto_refresh_thread.start()
+
+    def stop_auto_refresh(self):
+        self._auto_refresh_enabled = False
+        stop_event = self._auto_refresh_stop_event
+        worker = self._auto_refresh_thread
+
+        if stop_event is not None:
+            stop_event.set()
+
+        if worker is not None and worker.is_alive():
+            worker.join(timeout=1.0)
+
+        self._auto_refresh_thread = None
+        self._auto_refresh_stop_event = None
+
+    def _auto_refresh_loop(self, stop_event: threading.Event):
+        while not stop_event.is_set():
+            try:
+                self.refresh_datamodel()
+            except Exception:
+                # refresh_datamodel already tracks its own errors.
+                pass
+
+            if stop_event.wait(self._auto_refresh_interval):
+                break
+
     def refresh_datamodel(self):
         changed = False
-        try:
-            fake_datamodel_ptr = self.memory_module.get_address(Offsets["FakeDataModel"]["Pointer"], pointer=True)
-            datamodel_address_ptr = self.memory_module.get_pointer(fake_datamodel_ptr, Offsets["FakeDataModel"]["RealDataModel"])
+        instance_snapshot = None
 
-            if datamodel_address_ptr == 0:
+        with self._refresh_lock:
+            try:
+                fake_datamodel_ptr = self.memory_module.get_address(Offsets["FakeDataModel"]["Pointer"], pointer=True)
+                datamodel_address_ptr = self.memory_module.get_pointer(fake_datamodel_ptr, Offsets["FakeDataModel"]["RealDataModel"])
+
+                if datamodel_address_ptr == 0:
+                    if self.instance is not None:
+                        changed = True
+                    self.instance = None
+                    self.failed = True
+                    self._last_datamodel_address = 0
+                else:
+                    if self.instance is not None and datamodel_address_ptr == self.instance.raw_address:
+                        if self.failed:
+                            self.failed = False
+                    else:
+                        datamodel_instance = RBXInstance(datamodel_address_ptr, self.memory_module)
+
+                        if datamodel_instance.ClassName != "DataModel":
+                            if self.instance is not None:
+                                changed = True
+                            self.instance = None
+                            self.failed = True
+                            self._last_datamodel_address = 0
+                        else:
+                            if datamodel_instance.raw_address != self._last_datamodel_address:
+                                changed = True
+                            self.instance = datamodel_instance
+                            self.failed = False
+                            self.error = None
+                            self._last_datamodel_address = datamodel_instance.raw_address
+            except (KeyError, OSError) as e:
+                self.error = e
+                self.failed = True
                 if self.instance is not None:
                     changed = True
                 self.instance = None
-                self.failed = True
+                if self._last_datamodel_address != 0:
+                    changed = True
                 self._last_datamodel_address = 0
+            finally:
                 if changed:
-                    self._dispatch_refresh(None)
-                return
+                    instance_snapshot = self.instance
 
-            if self.instance is not None and datamodel_address_ptr == self.instance.raw_address:
-                if self.failed:
-                    self.failed = False
-                return
-
-            datamodel_instance = RBXInstance(datamodel_address_ptr, self.memory_module)
-
-            if datamodel_instance.ClassName != "DataModel":
-                self.failed = True
-                if self.instance is not None:
-                    changed = True
-                self.instance = None
-                self._last_datamodel_address = 0
-            else:
-                if datamodel_instance.raw_address != self._last_datamodel_address:
-                    changed = True
-                self.instance = datamodel_instance
-                self.failed = False
-                self.error = None
-                self._last_datamodel_address = datamodel_instance.raw_address
-        except (KeyError, OSError) as e:
-            self.error = e
-            self.failed = True
-            self.instance = None
-            if self._last_datamodel_address != 0:
-                changed = True
-            self._last_datamodel_address = 0
-        finally:
-            if changed:
-                self._dispatch_refresh(self.instance)
+        if changed:
+            self._dispatch_refresh(instance_snapshot)
 
     def _ensure_instance(self):
-        self.refresh_datamodel()
+        if not self._auto_refresh_enabled:
+            self.refresh_datamodel()
         return self.instance is not None and not self.failed
 
     def bind_to_refresh(self, callback, invoke_if_ready: bool = False):
