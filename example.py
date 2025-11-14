@@ -46,13 +46,18 @@ print("JobId:", game.JobId)
 print("Loaded:", game.IsLoaded())
 print("==============================")
 print("Player Name:", LocalPlayer.Name, f"({LocalPlayer.DisplayName} | userid: {LocalPlayer.UserId})")
-print("Player HRP Parent:", LocalPlayer.Character.PrimaryPart.GetFullName())
-print("Health:", LocalPlayer.Character.Humanoid.Health, LocalPlayer.Character.Humanoid.MaxHealth)
-print("Player Count:", len(game.Players.GetPlayers()))
-print("==============================")
-print("CurrentCamera CFrame:", game.Workspace.CurrentCamera.CFrame)
-print("CurrentCamera FOV:", game.Workspace.CurrentCamera.FieldOfView)
-print("CurrentCamera ViewportSize:", game.Workspace.CurrentCamera.ViewportSize)
+
+# LuaApp = Main Menu (not in game)
+if not game.is_lua_app():
+    print("Player HRP Parent:", LocalPlayer.Character.PrimaryPart.GetFullName())
+    print("Health:", LocalPlayer.Character.Humanoid.Health, LocalPlayer.Character.Humanoid.MaxHealth)
+    print("Player Count:", len(game.Players.GetPlayers()))
+    print("==============================")
+    print("CurrentCamera CFrame:", game.Workspace.CurrentCamera.CFrame)
+    print("CurrentCamera FOV:", game.Workspace.CurrentCamera.FieldOfView)
+    print("CurrentCamera ViewportSize:", game.Workspace.CurrentCamera.ViewportSize)
+else:
+    print("Roblox is not in a game. No preview data available.")
 
 # Write to the client's memory (kills player)
 #LocalPlayer.Character.Humanoid.Health = 0
