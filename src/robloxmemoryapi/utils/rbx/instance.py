@@ -1,6 +1,7 @@
 from ..offsets import *
 import time, math
 import threading
+import inspect
 from .datastructures import *
 
 
@@ -745,7 +746,7 @@ class CameraClass(RBXInstance):
     @property
     def ViewportSize(self):
         SizeData = self.memory_module.read_floats(
-            self.raw_address + Offsets["ViewportSize"],
+            self.raw_address + self.offset_base["ViewportSize"],
             2
         )
 
@@ -757,7 +758,7 @@ class CameraClass(RBXInstance):
         self._ensure_writable()
 
         self.memory_module.write_floats(
-            self.raw_address + Offsets["ViewportSize"],
+            self.raw_address + self.offset_base["ViewportSize"],
             (vec.X, vec.Y)
         )
 
@@ -924,7 +925,7 @@ class DataModel(ServiceBase):
 
         if invoke_if_ready and self.instance is not None and not self.failed:
             try:
-                callback(self.instance)
+                self._invoke_refresh_callback(callback, self.instance)
             except Exception:
                 pass
 
@@ -939,9 +940,32 @@ class DataModel(ServiceBase):
     def _dispatch_refresh(self, instance):
         for callback in list(self._refresh_callbacks):
             try:
-                callback(instance)
+                self._invoke_refresh_callback(callback, instance)
             except Exception:
                 continue
+
+    @staticmethod
+    def _callback_accepts_instance(callback):
+        try:
+            signature = inspect.signature(callback)
+        except (TypeError, ValueError):
+            return True
+
+        for param in signature.parameters.values():
+            if param.kind in (
+                param.POSITIONAL_ONLY,
+                param.POSITIONAL_OR_KEYWORD,
+                param.VAR_POSITIONAL,
+            ):
+                return True
+
+        return False
+
+    def _invoke_refresh_callback(self, callback, instance):
+        if self._callback_accepts_instance(callback):
+            callback(instance)
+        else:
+            callback()
 
     @property
     def PlaceId(self):

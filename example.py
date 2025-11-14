@@ -24,17 +24,21 @@ if client.failed:
 # Get the client's data model
 game = client.DataModel
 
+print("")
+
 # Refresh hooks let you react when Roblox swaps between home screen and game.
-def on_refresh(new_game):
-    if new_game is None:
-        print("[Refresh] DataModel became unavailable.")
+def on_refresh(datamodel):
+    if game.is_lua_app():
+        print("[Refresh] You are now in the Roblox Home Screen.")
     else:
-        print(f"[Refresh] DataModel refreshed. New PlaceId: {new_game.PlaceId}")
+        print(f"[Refresh] You are now in-game (PlaceId: {game.PlaceId})")
 
 # Register callback (optional invoke to run immediately with the current model).
 game.bind_to_refresh(on_refresh, invoke_if_ready=True)
 
 LocalPlayer = game.Players.LocalPlayer
+
+print("")
 
 # Print some info about the game
 print("RobloxMemoryAPI Demo:")
@@ -47,7 +51,7 @@ print("Loaded:", game.IsLoaded())
 print("==============================")
 print("Player Name:", LocalPlayer.Name, f"({LocalPlayer.DisplayName} | userid: {LocalPlayer.UserId})")
 
-# LuaApp = Main Menu (not in game)
+# LuaApp = Roblox Home Screen
 if not game.is_lua_app():
     print("Player HRP Parent:", LocalPlayer.Character.PrimaryPart.GetFullName())
     print("Health:", LocalPlayer.Character.Humanoid.Health, LocalPlayer.Character.Humanoid.MaxHealth)
@@ -62,4 +66,7 @@ else:
 # Write to the client's memory (kills player)
 #LocalPlayer.Character.Humanoid.Health = 0
 
+print("")
+
+input("Press Enter to close.\n\n")
 client.close()
