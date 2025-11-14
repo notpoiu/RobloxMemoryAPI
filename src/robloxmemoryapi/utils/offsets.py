@@ -10,4 +10,4 @@ OldOffsets = OldOffsetsRequest.json()
 Offsets = OffsetsRequest.json()["Offsets"]
 
 # Handle non-existant offsets
-Offsets["Camera"]["ViewportSize"] = OldOffsets["ViewportSize"]
+Offsets["Camera"]["ViewportSize"] = int(OldOffsets["ViewportSize"], 16)
