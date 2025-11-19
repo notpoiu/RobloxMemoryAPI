@@ -968,6 +968,17 @@ class DataModel(ServiceBase):
             callback()
 
     @property
+    def ServerIP(self):
+        if not self._ensure_instance():
+            return "127.0.0.1|42069"
+
+        return self.memory_module.read_string(
+            self.instance.raw_address,
+            self.offset_base["ServerIP"]
+        )
+
+
+    @property
     def PlaceId(self):
         if not self._ensure_instance():
             return 0
