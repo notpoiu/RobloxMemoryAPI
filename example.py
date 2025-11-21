@@ -63,6 +63,12 @@ if not game.is_lua_app():
 else:
     print("Roblox is not in a game. No preview data available.")
 
+# Bytecode operations, you cannot however set the bytecode of a LocalScript or ModuleScript (for now)
+PlayerModule = LocalPlayer.PlayerScripts.PlayerModule
+if PlayerModule is not None and PlayerModule.Bytecode is not None:
+    print("PlayerModule Bytecode (first 10 bytes):")
+    print(PlayerModule.Bytecode[:10])
+
 # Write to the client's memory (kills player)
 #LocalPlayer.Character.Humanoid.Health = 0
 

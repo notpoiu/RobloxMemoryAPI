@@ -3,6 +3,7 @@ import time, math
 import threading
 import inspect
 from .datastructures import *
+from .bytecode import decryptor
 
 
 # Normal Classes #
@@ -562,6 +563,26 @@ class RBXInstance:
             self.raw_address + self.model_offsets["PrimaryPart"],
             target
         )
+    
+    @property
+    def Bytecode(self):
+        classname = self.ClassName
+        if classname == "LocalScript":
+            bytecode_offset = Offsets["LocalScript"]["ByteCode"]
+        elif classname == "ModuleScript":
+            bytecode_offset = Offsets["ModuleScript"]["ByteCode"]
+        else:
+            return None
+
+        bytecode_ptr = self.memory_module.get_pointer(self.raw_address, bytecode_offset)
+        
+        if bytecode_ptr == 0:
+            return None
+
+        content_ptr = self.memory_module.get_pointer(bytecode_ptr, Offsets["ByteCode"]["Pointer"])
+        size = self.memory_module.read_int(bytecode_ptr + Offsets["ByteCode"]["Size"])
+
+        return decryptor.decode_bytecode(self.memory_module.read(content_ptr, size))
     
     # functions #
     def GetChildren(self):
