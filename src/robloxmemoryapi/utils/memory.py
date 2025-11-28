@@ -18,6 +18,9 @@ LPVOID = wintypes.LPVOID
 HMODULE = wintypes.HMODULE
 BOOL = wintypes.BOOL
 
+kernel32.VirtualAllocEx.restype = wintypes.LPVOID
+kernel32.VirtualAllocEx.argtypes = [HANDLE, wintypes.LPVOID, ctypes.c_size_t, wintypes.DWORD, wintypes.DWORD]
+
 PROCESS_QUERY_INFORMATION = 0x0400
 PROCESS_VM_READ = 0x0010
 PROCESS_VM_WRITE = 0x0020
@@ -26,6 +29,7 @@ LIST_MODULES_ALL = 0x03
 STATUS_SUCCESS = 0
 MEM_COMMIT = 0x1000
 MEM_RESERVE = 0x2000
+PAGE_READWRITE = 0x04
 PAGE_EXECUTE_READWRITE = 0x40
 NTDLL_HANDLE = ntdll._handle
 
@@ -90,19 +94,30 @@ NtWriteVirtualMemoryProto = ctypes.WINFUNCTYPE(
     ctypes.POINTER(ctypes.c_ulong)
 )
 NtCloseProto = ctypes.WINFUNCTYPE(NTSTATUS, HANDLE)
+NtAllocateVirtualMemoryProto = ctypes.WINFUNCTYPE(
+    NTSTATUS,
+    HANDLE,
+    ctypes.POINTER(LPVOID),
+    ctypes.c_ulong,
+    ctypes.POINTER(ctypes.c_size_t),
+    DWORD,
+    DWORD
+)
 
 syscall_id_open = get_syscall_number("NtOpenProcess")
 syscall_id_read = get_syscall_number("NtReadVirtualMemory")
 syscall_id_write = get_syscall_number("NtWriteVirtualMemory")
 syscall_id_close = get_syscall_number("NtClose")
+syscall_id_alloc = get_syscall_number("NtAllocateVirtualMemory")
 
-if not all([syscall_id_open, syscall_id_read, syscall_id_write, syscall_id_close]):
+if not all([syscall_id_open, syscall_id_read, syscall_id_write, syscall_id_close, syscall_id_alloc]):
     raise RuntimeError("Could not find required syscall numbers.")
 
 nt_open_process_syscall = create_syscall_function(syscall_id_open, NtOpenProcessProto)
 nt_read_virtual_memory_syscall = create_syscall_function(syscall_id_read, NtReadVirtualMemoryProto)
 nt_write_virtual_memory_syscall = create_syscall_function(syscall_id_write, NtWriteVirtualMemoryProto)
 nt_close_syscall = create_syscall_function(syscall_id_close, NtCloseProto)
+nt_allocate_virtual_memory_syscall = create_syscall_function(syscall_id_alloc, NtAllocateVirtualMemoryProto)
 
 psapi.EnumProcessModulesEx.argtypes = [
     HANDLE,
@@ -236,6 +251,30 @@ class EvasiveProcess:
         if status != STATUS_SUCCESS:
             raise OSError(f"NtWriteVirtualMemory failed with NTSTATUS: 0x{status:X}")
         return bytes_written.value
+
+    def virtual_alloc(self, size: int, allocation_type: int = MEM_COMMIT | MEM_RESERVE, protection: int = PAGE_READWRITE) -> int:
+        if size <= 0:
+            raise ValueError("size must be greater than zero.")
+        
+        if not self.handle or self.handle.value == 0:
+            raise ValueError("Process handle is not valid.")
+
+        base_address = LPVOID()
+        region_size = ctypes.c_size_t(size)
+        zero_bits = ctypes.c_ulong(0)
+
+        status = nt_allocate_virtual_memory_syscall(
+            self.handle,
+            ctypes.byref(base_address),
+            zero_bits,
+            ctypes.byref(region_size),
+            allocation_type,
+            protection
+        )
+        if status != STATUS_SUCCESS:
+            raise OSError(f"NtAllocateVirtualMemory failed with NTSTATUS: 0x{status:X}")
+
+        return int(ctypes.cast(base_address, ctypes.c_void_p).value)
 
     # numbers #
     def read_int(self, address: int, offset: int = 0) -> int:

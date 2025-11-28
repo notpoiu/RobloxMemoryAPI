@@ -1,6 +1,7 @@
 from robloxmemoryapi import RobloxGameClient, RobloxRandom
 from robloxmemoryapi.utils.rbx.datastructures import UDim2
 import platform
+import hashlib
 
 ## Random Class ##
 Test = RobloxRandom(5)
@@ -64,8 +65,7 @@ if not game.is_lua_app():
     # Bytecode operations, you cannot however set the bytecode of a LocalScript or ModuleScript (for now)
     PlayerModule = LocalPlayer.PlayerScripts.PlayerModule
     if PlayerModule is not None and PlayerModule.Bytecode is not None:
-        print("PlayerModule Bytecode (first 10 bytes):")
-        print(PlayerModule.Bytecode[:10])
+        print("PlayerModule Hash:", hashlib.sha384(PlayerModule.Bytecode).hexdigest())
 
 else:
     print("Roblox is not in a game. No preview data available.")
