@@ -356,16 +356,22 @@ class RBXInstance:
 
     @property
     def Enabled(self):
+        if self.ClassName != "ScreenGui":
+            return None
+        
         return self.memory_module.read_bool(
             self.raw_address,
-            self.gui_offsets["Enabled"]
+            self.gui_offsets["ScreenGui_Enabled"]
         )
 
     @Enabled.setter
     def Enabled(self, value: bool):
+        if self.ClassName != "ScreenGui":
+            raise AttributeError("Enabled is only available on ScreenGui instances.")
+        
         self._ensure_writable()
         self.memory_module.write_bool(
-            self.raw_address + self.gui_offsets["Enabled"],
+            self.raw_address + self.gui_offsets["ScreenGui_Enabled"],
             value
         )
 
