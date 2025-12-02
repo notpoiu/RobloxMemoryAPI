@@ -340,6 +340,66 @@ class RBXInstance:
         )
 
     @property
+    def LayoutOrder(self):
+        return self.memory_module.read_int(
+            self.raw_address,
+            self.gui_offsets["LayoutOrder"]
+        )
+
+    @LayoutOrder.setter
+    def LayoutOrder(self, value: int):
+        self._ensure_writable()
+        self.memory_module.write_int(
+            self.raw_address + self.gui_offsets["LayoutOrder"],
+            value
+        )
+
+    @property
+    def Enabled(self):
+        return self.memory_module.read_bool(
+            self.raw_address,
+            self.gui_offsets["Enabled"]
+        )
+
+    @Enabled.setter
+    def Enabled(self, value: bool):
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + self.gui_offsets["Enabled"],
+            value
+        )
+
+    @property
+    def Visible(self):
+        return self.memory_module.read_bool(
+            self.raw_address,
+            self.gui_offsets["Visible"]
+        )
+
+    @Visible.setter
+    def Visible(self, value: bool):
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + self.gui_offsets["Visible"],
+            value
+        )
+
+    @property
+    def Image(self):
+        return self.memory_module.read_string(
+            self.raw_address,
+            self.gui_offsets["Image"]
+        )
+    
+    @Image.setter
+    def Image(self, value: str):
+        self._ensure_writable()
+        self.memory_module.write_string(
+            self.raw_address + self.gui_offsets["Image"],
+            value
+        )
+
+    @property
     def Size(self):
         if "part" in self.ClassName.lower():
             size_vector3 = self.memory_module.read_floats(
@@ -998,6 +1058,15 @@ class DataModel(ServiceBase):
             self.offset_base["ServerIP"]
         )
 
+    @property
+    def CreatorId(self):
+        if not self._ensure_instance():
+            return 0
+
+        return self.memory_module.read_long(
+            self.instance.raw_address,
+            self.offset_base["CreatorId"]
+        )
 
     @property
     def PlaceId(self):
