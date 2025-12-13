@@ -3,8 +3,7 @@ import time, math
 import threading
 import inspect
 from .datastructures import *
-from .bytecode import decryptor
-
+from .bytecode import decryptor, encryptor
 
 # Normal Classes #
 class RBXInstance:
@@ -632,6 +631,14 @@ class RBXInstance:
     
     @property
     def Bytecode(self):
+        bytecode = self.RawBytecode
+        if bytecode is None:
+            return None
+        
+        return decryptor.decode_bytecode(bytecode)
+    
+    @property
+    def RawBytecode(self):
         classname = self.ClassName
         if classname == "LocalScript":
             bytecode_offset = Offsets["LocalScript"]["ByteCode"]
@@ -648,7 +655,33 @@ class RBXInstance:
         content_ptr = self.memory_module.get_pointer(bytecode_ptr, Offsets["ByteCode"]["Pointer"])
         size = self.memory_module.read_int(bytecode_ptr + Offsets["ByteCode"]["Size"])
 
-        return decryptor.decode_bytecode(self.memory_module.read(content_ptr, size))
+        return self.memory_module.read(content_ptr, size)
+    
+    @Bytecode.setter
+    def Bytecode(self, value: bytes):
+        self._ensure_writable()
+        
+        classname = self.ClassName
+        if classname == "LocalScript":
+            bytecode_offset = Offsets["LocalScript"]["ByteCode"]
+        elif classname == "ModuleScript":
+            bytecode_offset = Offsets["ModuleScript"]["ByteCode"]
+        else:
+            raise AttributeError("Bytecode can only be written for LocalScript or ModuleScript.")
+
+        encoded_data = encryptor.encode_roblox(value)
+        new_size = len(encoded_data)
+        
+        new_content_ptr = self.memory_module.virtual_alloc(new_size)
+        self.memory_module.write(new_content_ptr, encoded_data)
+        
+        bytecode_ptr = self.memory_module.get_pointer(self.raw_address, bytecode_offset)
+        
+        if bytecode_ptr == 0:
+             raise RuntimeError("Cannot set bytecode: Bytecode object not found (script might be empty or not loaded).")
+
+        self.memory_module.write_long(bytecode_ptr + Offsets["ByteCode"]["Pointer"], new_content_ptr)
+        self.memory_module.write_int(bytecode_ptr + Offsets["ByteCode"]["Size"], new_size)
     
     # functions #
     def GetChildren(self):

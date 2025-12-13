@@ -62,11 +62,20 @@ if not game.is_lua_app():
     print("CurrentCamera FOV:", game.Workspace.CurrentCamera.FieldOfView)
     print("CurrentCamera ViewportSize:", game.Workspace.CurrentCamera.ViewportSize)
 
-    # Bytecode operations, you cannot however set the bytecode of a LocalScript or ModuleScript (for now)
+    # Bytecode operations (READING)
     PlayerModule = LocalPlayer.PlayerScripts.PlayerModule
     if PlayerModule is not None and PlayerModule.Bytecode is not None:
-        print("PlayerModule Hash:", hashlib.sha384(PlayerModule.Bytecode).hexdigest())
+        print("PlayerModule Script Hash:", hashlib.sha384(PlayerModule.RawBytecode).hexdigest())
 
+    # Bytecode write operations (WRITING)
+    if os.path.exists("misc/BytecodeToWrite.luac"):
+        with open("misc/BytecodeToWrite.luac", "rb") as f:
+            BytecodeToWrite = f.read()
+        
+        PlayerModule.Bytecode = BytecodeToWrite
+        print("Set bytecode of PlayerModule to BytecodeToWrite.luac")
+    else:
+        print("misc/BytecodeToWrite.luac not found")
 else:
     print("Roblox is not in a game. No preview data available.")
 

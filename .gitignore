@@ -8,3 +8,4 @@ build/
 pip-wheel-metadata/
 .venv/
 venv/
+misc/BytecodeToWrite.luac

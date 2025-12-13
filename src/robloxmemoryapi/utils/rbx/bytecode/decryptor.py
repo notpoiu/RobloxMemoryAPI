@@ -4,12 +4,6 @@ import zstandard as zstd
 def decrypt_rsb1(encrypted_data: bytes) -> bytes:
     """
     Decrypts the RSB1 encrypted bytecode blob.
-    
-    The encryption logic in the C++ code is:
-    buffer[i] ^= key_bytes[i % 4] + i * 41
-    
-    We know the first 4 bytes of the decrypted data are "RSB1".
-    We can use this to recover the 4-byte key.
     """
     if len(encrypted_data) < 8:
         raise ValueError("Data too short to be RSB1")
