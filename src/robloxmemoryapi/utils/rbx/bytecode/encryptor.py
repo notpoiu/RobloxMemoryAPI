@@ -1,4 +1,4 @@
-from ...luau.disassembler import LuauBytecodeStream, process_proto
+from ...luau.parser import LuauBytecodeStream, process_proto
 import struct
 import zstandard as zstd
 import blake3
