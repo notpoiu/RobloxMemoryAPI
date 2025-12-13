@@ -1,6 +1,7 @@
 from robloxmemoryapi import RobloxGameClient, RobloxRandom
 from robloxmemoryapi.utils.rbx.datastructures import UDim2
 import platform
+import os
 import hashlib
 
 ## Random Class ##
