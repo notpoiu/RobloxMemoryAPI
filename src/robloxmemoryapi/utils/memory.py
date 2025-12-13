@@ -358,6 +358,41 @@ class EvasiveProcess:
             data += b'\x00'
         self.write(address, data)
         
+    def write_string(self, address: int, value: str) -> None:
+        encoded = value.encode('utf-8')
+        length = len(encoded)
+        
+        length_address = address + 0x10
+        capacity_address = address + 0x18
+        
+        current_capacity = self.read_int(capacity_address)
+        
+        if length <= current_capacity:
+            if current_capacity > 15:
+                ptr = self.read_long(address)
+                if ptr != 0:
+                    self.write(ptr, encoded)
+                    
+                    if length < current_capacity:
+                        self.write(ptr + length, b'\x00')
+            else:
+                data_to_write = encoded + b'\x00' * (16 - length)
+                self.write(address, data_to_write[:16])
+        
+        else:
+            new_capacity = length + 16 # Padding for future edits
+            ptr = self.virtual_alloc(new_capacity)
+            
+            if ptr == 0:
+                raise MemoryError("Failed to allocate memory for string.")
+            
+            self.write(ptr, encoded + b'\x00') # Write string
+
+            self.write_long(address, ptr)           # Pointer
+            self.write_int(capacity_address, new_capacity) # Capacity
+
+        self.write_int(length_address, length)
+
     def read_string(self, address: int, offset: int = 0) -> str:
         if offset != 0:
             address += offset

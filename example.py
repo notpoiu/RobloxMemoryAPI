@@ -63,6 +63,23 @@ if not game.is_lua_app():
     print("CurrentCamera FOV:", game.Workspace.CurrentCamera.FieldOfView)
     print("CurrentCamera ViewportSize:", game.Workspace.CurrentCamera.ViewportSize)
 
+    print("")
+
+    # Attributes
+    print("Attributes:")
+    for name, attribute in game.Workspace.GetAttributes().items():
+        print(f"Attribute: '{name}' | Type: {attribute.type_name} | Value: {attribute.value}")
+    
+    print("")
+    
+    if game.Workspace.GetAttribute("Test") is not None:
+        print("Test attribute found, testing...")
+        print(f"Old attribute: {game.Workspace.GetAttribute("Test")}")
+        game.Workspace.SetAttribute("Test", "Hello World")
+        print(f"New attribute: {game.Workspace.GetAttribute("Test")}")
+
+    print("")
+
     # Bytecode operations (READING)
     PlayerModule = LocalPlayer.PlayerScripts.PlayerModule
     if PlayerModule is not None and PlayerModule.Bytecode is not None:

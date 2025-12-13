@@ -66,55 +66,6 @@ class RBXInstance:
                     return UDim2(x[0], x[1], y[0], y[1])
         raise TypeError(f"{context} must be a UDim2 or a compatible iterable.")
 
-    # memory helpers #
-    def _write_rbx_string(self, address: int, value: str):
-        self._ensure_writable()
-
-        if not isinstance(value, str):
-            raise TypeError("value must be a string.")
-
-        if not isinstance(address, int):
-            raise TypeError("address must be an int.")
-        
-        if address == 0:
-            raise ValueError("String address is null; cannot write.")
-
-        encoded = value.encode('utf-8')
-        new_length = len(encoded)
-
-        length_address = address + 0x10
-        capacity_address = address + 0x18
-        capacity = self.memory_module.read_int(capacity_address)
-
-        if capacity <= 15:
-            if new_length > 15:
-                raise ValueError("String too long (max 15 UTF-8 bytes supported for inline Roblox strings).")
-
-            padded = encoded + b'\x00'
-            if len(padded) < 16:
-                padded += b'\x00' * (16 - len(padded))
-
-            self.memory_module.write(address, padded[:16])
-            self.memory_module.write_int(length_address, new_length)
-            return
-
-        string_pointer = self.memory_module.read_long(address)
-
-        if string_pointer == 0:
-            raise RuntimeError("String has null heap pointer; ensure the value is preallocated.")
-
-        if new_length > capacity:
-            raise ValueError(f"String length {new_length} exceeds allocated capacity {capacity}.")
-
-        if new_length:
-            self.memory_module.write(string_pointer, encoded)
-            if new_length < capacity:
-                self.memory_module.write(string_pointer + new_length, b"\x00")
-        else:
-            self.memory_module.write(string_pointer, b"\x00")
-
-        self.memory_module.write_int(length_address, new_length)
-
     def _read_udim2(self, address: int) -> UDim2:
         if not isinstance(address, int):
             raise TypeError("address must be an int.")
@@ -194,7 +145,7 @@ class RBXInstance:
             self.raw_address,
             self.instance_offsets["Name"]
         )
-        self._write_rbx_string(name_address, value)
+        self.memory_module.write_string(name_address, value)
     
     @property
     def ClassName(self):
@@ -462,7 +413,7 @@ class RBXInstance:
         value_address = self.raw_address + self.misc_offsets["Value"]
 
         if classname == "StringValue":
-            self._write_rbx_string(value_address, str(new_value))
+            self.memory_module.write_string(value_address, str(new_value))
         elif classname == "IntValue":
             self.memory_module.write_int(value_address, int(new_value))
         elif classname == "NumberValue":
@@ -505,7 +456,7 @@ class RBXInstance:
     def Text(self, value: str):
         if "text" not in self.ClassName.lower():
             raise AttributeError("Text is not available on this instance.")
-        self._write_rbx_string(
+        self.memory_module.write_string(
             self.raw_address + self.gui_offsets["Text"],
             str(value)
         )
@@ -765,6 +716,184 @@ class RBXInstance:
 
         return child
 
+    def GetAttribute(self, attribute_name: str):
+        for name, attribute in self.GetAttributes().items():
+            if name == attribute_name:
+                return attribute
+        return None
+
+    def GetAttributes(self):
+        attributes = {}
+        attribute_container = self.memory_module.read_long(
+            self.raw_address + self.instance_offsets["AttributeContainer"]
+        )
+        
+        if attribute_container == 0:
+            return attributes
+
+        attribute_list = self.memory_module.read_long(
+            attribute_container + self.instance_offsets["AttributeList"]
+        )
+        
+        if attribute_list == 0:
+            return attributes
+
+        i = 0
+        while i < 0x400:
+            name_ptr = self.memory_module.read_long(attribute_list + i)
+            if name_ptr == 0:
+                break
+
+            try:
+                name = self.memory_module.read_string(name_ptr)
+            except OSError:
+                break
+            
+            if not name or name == "invalid_str":
+                break
+
+            value_addr = attribute_list + i + self.instance_offsets["AttributeToValue"]
+            
+            # Read Type Name (Pointer at +0x8 points to TypeDescriptor, Name at TypeDesc + 0x8)
+            type_ptr = self.memory_module.read_long(attribute_list + i + 0x8)
+            type_name = self._read_type_name(type_ptr)
+
+            attributes[name] = AttributeValue(value_addr, name, type_name, self.memory_module)
+
+            i += self.instance_offsets["AttributeToNext"]
+        
+        return attributes
+
+
+    def SetAttribute(self, name: str, value):
+        attribute = self.GetAttribute(name)
+        if attribute is None:
+            raise ValueError(f"Attribute '{name}' not found. Only existing attributes can be modified.")
+        
+        attribute.value = value
+
+    def _read_type_name(self, type_ptr: int) -> str:
+        if type_ptr == 0: return "Unknown"
+        try:
+            name_ptr = self.memory_module.read_long(type_ptr + 0x8) # Name at +8 of TypeDescriptor
+            if name_ptr != 0:
+                name = self.memory_module.read_string(name_ptr)
+                return name if name else "Unknown"
+        except: pass
+        return "Unknown"
+
+class AttributeValue:
+    def __init__(self, address, name, type_name, memory_module):
+        self.address = address
+        self.name = name
+        self.type_name = type_name
+        self.memory_module = memory_module
+
+    @property
+    def value(self):
+        t = self.type_name.lower()
+        if t == "string":
+            return self.memory_module.read_string(self.address)
+        elif t == "bool":
+            return self.memory_module.read_bool(self.address)
+        elif t == "double" or t == "float": 
+            return self.memory_module.read_double(self.address)
+        elif t == "int" or t == "int64":
+            return self.memory_module.read_int(self.address)
+        elif t == "vector3":
+            return Vector3(*self.memory_module.read_floats(self.address, 3))
+        elif t == "vector2":
+            return Vector2(*self.memory_module.read_floats(self.address, 2))
+        elif t == "color3":
+            return Vector3(*self.memory_module.read_floats(self.address, 3))
+        elif t == "cframe":
+            return self.memory_module.read_floats(self.address, 12)
+        elif "keycode" in t:
+            return self.memory_module.read_int(self.address)
+        else:
+            return None
+
+    @value.setter
+    def value(self, new_value):
+        t = self.type_name.lower()
+        if t == "string":
+            self.memory_module.write_string(self.address, str(new_value))
+        elif t == "bool":
+            self.memory_module.write_bool(self.address, bool(new_value))
+        elif t == "double" or t == "float":
+            self.memory_module.write_double(self.address, float(new_value))
+        elif t == "int" or t == "int64" or "keycode" in t:
+            self.memory_module.write_int(self.address, int(new_value))
+        elif t == "vector3":
+            if isinstance(new_value, Vector3):
+                self.memory_module.write_floats(self.address, (new_value.X, new_value.Y, new_value.Z))
+            elif isinstance(new_value, (list, tuple)) and len(new_value) == 3:
+                self.memory_module.write_floats(self.address, new_value)
+            else:
+                raise TypeError("Vector3 value expected")
+        elif t == "vector2":
+            if isinstance(new_value, Vector2):
+                self.memory_module.write_floats(self.address, (new_value.X, new_value.Y))
+            elif isinstance(new_value, (list, tuple)) and len(new_value) == 2:
+                self.memory_module.write_floats(self.address, new_value)
+            else:
+                raise TypeError("Vector2 value expected")
+        elif t == "color3":
+             if isinstance(new_value, Vector3): # Color3 is often treated as Vector3 storage-wise here
+                self.memory_module.write_floats(self.address, (new_value.X, new_value.Y, new_value.Z))
+             elif isinstance(new_value, (list, tuple)) and len(new_value) == 3:
+                self.memory_module.write_floats(self.address, new_value)
+             else:
+                raise TypeError("Color3 (Vector3/list) value expected")
+        else:
+            raise TypeError(f"Setting value for type '{t}' is not supported yet.")
+
+    def __repr__(self):
+        return f"<AttributeValue name='{self.name}' type='{self.type_name}' value={self.value}>"
+
+    # setters #
+    def set_float(self, value):
+        if isinstance(value, list):
+            self.memory_module.write_floats(self.address, value)
+        else:
+            self.memory_module.write_float(self.address, value)
+
+    def set_double(self, value):
+        if isinstance(value, list):
+            self.memory_module.write_doubles(self.address, value)
+        else:
+            self.memory_module.write_double(self.address, value)
+    
+    def set_int(self, value):
+        if isinstance(value, list):
+            self.memory_module.write_ints(self.address, value)
+        else:
+            self.memory_module.write_int(self.address, value)
+        
+    def set_long(self, value):
+        if isinstance(value, list):
+            self.memory_module.write_longs(self.address, value)
+        else:
+            self.memory_module.write_long(self.address, value)
+        
+    def set_bool(self, value):
+        self.memory_module.write_bool(self.address, value)
+
+    def set_string(self, value):
+        self.memory_module.write_string(self.address, value)
+
+    def set_vector2(self, value):
+        if isinstance(value, Vector2):
+            self.memory_module.write_floats(self.address, (value.X, value.Y))
+        else:
+            raise TypeError("value must be a Vector2")
+
+    def set_vector3(self, value):
+        if isinstance(value, Vector3):
+            self.memory_module.write_floats(self.address, (value.X, value.Y, value.Z))
+        else:
+            raise TypeError("value must be a Vector3")
+
 class PlayerClass(RBXInstance):
     def __init__(self, memory_module, player: RBXInstance):
         super().__init__(player.raw_address, memory_module)
@@ -801,7 +930,7 @@ class PlayerClass(RBXInstance):
 
     @DisplayName.setter
     def DisplayName(self, value: str):
-        self._write_rbx_string(
+        self.memory_module.write_string(
             self.raw_address + self.offset_base["DisplayName"],
             str(value)
         )
