@@ -1379,3 +1379,29 @@ class WorkspaceService(ServiceBase):
             return None
 
         return CameraClass(self.memory_module, RBXInstance(CameraAddress, self.memory_module))
+    
+    @property
+    def Gravity(self):
+        GravityContainer = self.memory_module.get_pointer(
+            self.instance.raw_address,
+            self.offset_base["GravityContainer"]
+        )
+
+        return self.memory_module.read_float(
+            GravityContainer,
+            self.offset_base["Gravity"]
+        )
+
+    @Gravity.setter
+    def Gravity(self, value: float):
+        self._ensure_writable()
+
+        GravityContainer = self.memory_module.get_pointer(
+            self.instance.raw_address,
+            self.offset_base["GravityContainer"]
+        )
+
+        self.memory_module.write_float(
+            GravityContainer + self.offset_base["Gravity"],
+            float(value)
+        )
