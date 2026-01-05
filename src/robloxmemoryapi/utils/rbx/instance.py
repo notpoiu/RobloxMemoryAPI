@@ -483,6 +483,11 @@ class RBXInstance:
             float(value)
         )
 
+        self.memory_module.write_float(
+            self.raw_address + self.humanoid_offsets["WalkspeedCheck"],
+            float(value)
+        )
+
     @property
     def JumpPower(self):
         if self.ClassName != "Humanoid":
