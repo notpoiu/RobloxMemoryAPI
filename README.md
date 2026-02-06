@@ -20,9 +20,9 @@ pip install -e .
 
 ## Documentation
 
-- [Overview](docs/index.md)
-- [API Reference](docs/api.md)
-- [Data Types](docs/types.md)
+- [Overview](https://github.com/notpoiu/RobloxMemoryAPI/wiki)
+- [API Reference](https://github.com/notpoiu/RobloxMemoryAPI/wiki/API-Reference)
+- [Data Types](https://github.com/notpoiu/RobloxMemoryAPI/wiki/Data-Types)
 
 ## Usage
 
