@@ -18,6 +18,12 @@ Development (editable install from source):
 pip install -e .
 ```
 
+## Documentation
+
+- [Overview](docs/index.md)
+- [API Reference](docs/api.md)
+- [Data Types](docs/types.md)
+
 ## Usage
 
 An example script can be found in [example.py](https://raw.githubusercontent.com/notpoiu/RobloxMemoryAPI/refs/heads/main/example.py). If running from the repo, use the editable install above so `import robloxmemoryapi` resolves the `src` package.
@@ -55,12 +61,6 @@ Get the local player's name:
 ```python
 print("Player Name:", game.Players.LocalPlayer.Name)
 ```
-
-## Documentation
-
-- [Overview](docs/index.md)
-- [API Reference](docs/api.md)
-- [Data Types](docs/types.md)
 
 ## License
 
