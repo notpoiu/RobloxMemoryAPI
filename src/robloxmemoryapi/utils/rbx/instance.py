@@ -42,6 +42,16 @@ class RBXInstance:
         raise TypeError(f"{context} must be a Vector3 or an iterable of three numbers.")
 
     @staticmethod
+    def _as_color3(value, context="value"):
+        if isinstance(value, Color3):
+            return value
+        
+        if isinstance(value, (tuple, list)) and len(value) == 3:
+            return Color3(*value)
+        
+        raise TypeError(f"{context} must be a Color3 or an iterable of three numbers.")
+
+    @staticmethod
     def _as_vector2(value, context="value"):
         if isinstance(value, Vector2):
             return value
@@ -263,7 +273,7 @@ class RBXInstance:
             self._write_udim2(self.raw_address + self.gui_offsets["Position"], udim2_value)
 
     @property
-    def Velocity(self):
+    def AssemblyLinearVelocity(self):
         className = self.ClassName
 
         if "part" in className.lower():
@@ -275,19 +285,54 @@ class RBXInstance:
         
         return None
 
-    @Velocity.setter
-    def Velocity(self, value):
+    @AssemblyLinearVelocity.setter
+    def AssemblyLinearVelocity(self, value):
         className = self.ClassName
         if "part" not in className.lower():
-            raise AttributeError("Velocity can only be written for BasePart-derived instances.")
+            raise AttributeError("AssemblyLinearVelocity can only be written for BasePart-derived instances.")
         
-        vec = self._as_vector3(value, "Velocity")
+        vec = self._as_vector3(value, "AssemblyLinearVelocity")
         
         self._ensure_writable()
         self.memory_module.write_floats(
             self.primitive_address + self.basepart_offsets["AssemblyLinearVelocity"],
             (vec.X, vec.Y, vec.Z)
         )
+
+    @property
+    def AssemblyAngularVelocity(self):
+        className = self.ClassName
+
+        if "part" in className.lower():
+            velocity_vector3 = self.memory_module.read_floats(
+                self.primitive_address + self.basepart_offsets["AssemblyAngularVelocity"],
+                3
+            )
+            return Vector3(*velocity_vector3)
+        
+        return None
+
+    @AssemblyAngularVelocity.setter
+    def AssemblyAngularVelocity(self, value):
+        className = self.ClassName
+        if "part" not in className.lower():
+            raise AttributeError("AssemblyAngularVelocity can only be written for BasePart-derived instances.")
+        
+        vec = self._as_vector3(value, "AssemblyAngularVelocity")
+        
+        self._ensure_writable()
+        self.memory_module.write_floats(
+            self.primitive_address + self.basepart_offsets["AssemblyAngularVelocity"],
+            (vec.X, vec.Y, vec.Z)
+        )
+
+    @property
+    def Velocity(self):
+        return self.AssemblyLinearVelocity
+
+    @Velocity.setter
+    def Velocity(self, value):
+        self.AssemblyLinearVelocity = value
 
     @property
     def LayoutOrder(self):
@@ -379,6 +424,124 @@ class RBXInstance:
             gui_size = self._as_udim2(value, "Size")
             self._write_udim2(self.raw_address + self.gui_offsets["Size"], gui_size)
 
+    @property
+    def Transparency(self):
+        if "part" not in self.ClassName.lower():
+            return None
+        
+        return self.memory_module.read_float(
+            self.raw_address,
+            self.basepart_offsets["Transparency"]
+        )
+
+    @Transparency.setter
+    def Transparency(self, value: float):
+        if "part" not in self.ClassName.lower():
+            raise AttributeError("Transparency is only available on BasePart-derived instances.")
+        self._ensure_writable()
+
+        self.memory_module.write_float(
+            self.raw_address + self.basepart_offsets["Transparency"],
+            float(value)
+        )
+
+    @property
+    def Color(self):
+        if "part" not in self.ClassName.lower():
+            return None
+        
+        color_data = self.memory_module.read_floats(
+            self.raw_address + self.basepart_offsets["Color3"],
+            3
+        )
+        return Color3(*color_data)
+
+    @Color.setter
+    def Color(self, value):
+        if "part" not in self.ClassName.lower():
+            raise AttributeError("Color3 is only available on BasePart-derived instances.")
+        self._ensure_writable()
+
+        vec = self._as_color3(value, "Color3")
+        self.memory_module.write_floats(
+            self.primitive_address + self.basepart_offsets["Color3"],
+            (vec.X, vec.Y, vec.Z)
+        )
+
+    def _read_primitive_flags(self):
+        data = self.memory_module.read(
+            self.primitive_address + self.basepart_offsets["PrimitiveFlags"], 
+            1
+        )
+        return int.from_bytes(data, 'little') if data else 0
+
+    def _write_primitive_flags(self, flags: int):
+        self._ensure_writable()
+        self.memory_module.write(
+            self.primitive_address + self.basepart_offsets["PrimitiveFlags"],
+            (flags & 0xFF).to_bytes(1, 'little')
+        )
+
+    @property
+    def Anchored(self):
+        if "part" not in self.ClassName.lower():
+            return None
+        
+        flags = self._read_primitive_flags()
+        return bool(flags & Offsets["PrimitiveFlags"]["Anchored"])
+
+    @Anchored.setter
+    def Anchored(self, value: bool):
+        if "part" not in self.ClassName.lower():
+            raise AttributeError("Anchored is only available on BasePart-derived instances.")
+        
+        flags = self._read_primitive_flags()
+        if value:
+            flags |= Offsets["PrimitiveFlags"]["Anchored"]
+        else:
+            flags &= ~Offsets["PrimitiveFlags"]["Anchored"]
+        self._write_primitive_flags(flags)
+
+    @property
+    def CanCollide(self):
+        if "part" not in self.ClassName.lower():
+            return None
+        
+        flags = self._read_primitive_flags()
+        return bool(flags & Offsets["PrimitiveFlags"]["CanCollide"])
+
+    @CanCollide.setter
+    def CanCollide(self, value: bool):
+        if "part" not in self.ClassName.lower():
+            raise AttributeError("CanCollide is only available on BasePart-derived instances.")
+        
+        flags = self._read_primitive_flags()
+        if value:
+            flags |= Offsets["PrimitiveFlags"]["CanCollide"]
+        else:
+            flags &= ~Offsets["PrimitiveFlags"]["CanCollide"]
+        self._write_primitive_flags(flags)
+
+    @property
+    def CanTouch(self):
+        if "part" not in self.ClassName.lower():
+            return None
+        
+        flags = self._read_primitive_flags()
+        return bool(flags & Offsets["PrimitiveFlags"]["CanTouch"])
+
+    @CanTouch.setter
+    def CanTouch(self, value: bool):
+        if "part" not in self.ClassName.lower():
+            raise AttributeError("CanTouch is only available on BasePart-derived instances.")
+        
+        flags = self._read_primitive_flags()
+        if value:
+            flags |= Offsets["PrimitiveFlags"]["CanTouch"]
+        else:
+            flags &= ~Offsets["PrimitiveFlags"]["CanTouch"]
+        self._write_primitive_flags(flags)
+
     # XXXXValue props #
     @property
     def Value(self):
@@ -459,6 +622,95 @@ class RBXInstance:
         self.memory_module.write_string(
             self.raw_address + self.gui_offsets["Text"],
             str(value)
+        )
+
+    @property
+    def RichText(self):
+        return self.memory_module.read_bool(
+            self.raw_address,
+            self.gui_offsets["RichText"]
+        )
+
+    @RichText.setter
+    def RichText(self, value: bool):
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + self.gui_offsets["RichText"],
+            bool(value)
+        )
+
+    @property
+    def BackgroundColor3(self):
+        color_data = self.memory_module.read_floats(
+            self.raw_address + self.gui_offsets["BackgroundColor3"],
+            3
+        )
+        return Vector3(*color_data)
+
+    @BackgroundColor3.setter
+    def BackgroundColor3(self, value):
+        self._ensure_writable()
+        vec = self._as_vector3(value, "BackgroundColor3")
+        self.memory_module.write_floats(
+            self.raw_address + self.gui_offsets["BackgroundColor3"],
+            (vec.X, vec.Y, vec.Z)
+        )
+
+    @property
+    def BorderColor3(self):
+        color_data = self.memory_module.read_floats(
+            self.raw_address + self.gui_offsets["BorderColor3"],
+            3
+        )
+        return Vector3(*color_data)
+
+    @BorderColor3.setter
+    def BorderColor3(self, value):
+        self._ensure_writable()
+        vec = self._as_vector3(value, "BorderColor3")
+        self.memory_module.write_floats(
+            self.raw_address + self.gui_offsets["BorderColor3"],
+            (vec.X, vec.Y, vec.Z)
+        )
+
+    @property
+    def TextColor3(self):
+        color_data = self.memory_module.read_floats(
+            self.raw_address + self.gui_offsets["TextColor3"],
+            3
+        )
+        return Vector3(*color_data)
+
+    @TextColor3.setter
+    def TextColor3(self, value):
+        self._ensure_writable()
+        vec = self._as_vector3(value, "TextColor3")
+        self.memory_module.write_floats(
+            self.raw_address + self.gui_offsets["TextColor3"],
+            (vec.X, vec.Y, vec.Z)
+        )
+
+    @property
+    def Rotation(self):
+        className = self.ClassName.lower()
+        if "part" in className:
+            # BasePart rotation handled via CFrame
+            return None
+        else:
+            return self.memory_module.read_float(
+                self.raw_address,
+                self.gui_offsets["Rotation"]
+            )
+
+    @Rotation.setter
+    def Rotation(self, value: float):
+        className = self.ClassName.lower()
+        if "part" in className:
+            raise AttributeError("Use CFrame to set rotation on BasePart instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + self.gui_offsets["Rotation"],
+            float(value)
         )
 
     # humanoid props #
@@ -549,6 +801,142 @@ class RBXInstance:
         self.memory_module.write_float(
             self.raw_address + self.humanoid_offsets["MaxHealth"],
             float(value)
+        )
+
+    @property
+    def JumpHeight(self):
+        if self.ClassName != "Humanoid":
+            return None
+        
+        return self.memory_module.read_float(
+            self.raw_address,
+            self.humanoid_offsets["JumpHeight"]
+        )
+
+    @JumpHeight.setter
+    def JumpHeight(self, value: float):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("JumpHeight is only available on Humanoid instances.")
+        self._ensure_writable()
+
+        self.memory_module.write_float(
+            self.raw_address + self.humanoid_offsets["JumpHeight"],
+            float(value)
+        )
+
+    @property
+    def HipHeight(self):
+        if self.ClassName != "Humanoid":
+            return None
+        
+        return self.memory_module.read_float(
+            self.raw_address,
+            self.humanoid_offsets["HipHeight"]
+        )
+
+    @HipHeight.setter
+    def HipHeight(self, value: float):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("HipHeight is only available on Humanoid instances.")
+        self._ensure_writable()
+
+        self.memory_module.write_float(
+            self.raw_address + self.humanoid_offsets["HipHeight"],
+            float(value)
+        )
+
+    @property
+    def MaxSlopeAngle(self):
+        if self.ClassName != "Humanoid":
+            return None
+        
+        return self.memory_module.read_float(
+            self.raw_address,
+            self.humanoid_offsets["MaxSlopeAngle"]
+        )
+
+    @MaxSlopeAngle.setter
+    def MaxSlopeAngle(self, value: float):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("MaxSlopeAngle is only available on Humanoid instances.")
+        self._ensure_writable()
+
+        self.memory_module.write_float(
+            self.raw_address + self.humanoid_offsets["MaxSlopeAngle"],
+            float(value)
+        )
+
+    @property
+    def RigType(self):
+        if self.ClassName != "Humanoid":
+            return None
+        
+        return self.memory_module.read_int(
+            self.raw_address,
+            self.humanoid_offsets["RigType"]
+        )
+
+    @property
+    def FloorMaterial(self):
+        if self.ClassName != "Humanoid":
+            return None
+        
+        return self.memory_module.read_int(
+            self.raw_address,
+            self.humanoid_offsets["FloorMaterial"]
+        )
+
+    @property
+    def Jump(self):
+        if self.ClassName != "Humanoid":
+            return None
+        
+        return self.memory_module.read_bool(
+            self.raw_address,
+            self.humanoid_offsets["Jump"]
+        )
+
+    @Jump.setter
+    def Jump(self, value: bool):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("Jump is only available on Humanoid instances.")
+        self._ensure_writable()
+
+        self.memory_module.write_bool(
+            self.raw_address + self.humanoid_offsets["Jump"],
+            bool(value)
+        )
+
+    @property
+    def MoveDirection(self):
+        if self.ClassName != "Humanoid":
+            return None
+        
+        move_dir = self.memory_module.read_floats(
+            self.raw_address + self.humanoid_offsets["MoveDirection"],
+            3
+        )
+        return Vector3(*move_dir)
+
+    @property
+    def AutoRotate(self):
+        if self.ClassName != "Humanoid":
+            return None
+        
+        return self.memory_module.read_bool(
+            self.raw_address,
+            self.humanoid_offsets["AutoRotate"]
+        )
+
+    @AutoRotate.setter
+    def AutoRotate(self, value: bool):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("AutoRotate is only available on Humanoid instances.")
+        self._ensure_writable()
+
+        self.memory_module.write_bool(
+            self.raw_address + self.humanoid_offsets["AutoRotate"],
+            bool(value)
         )
 
     # model props #
@@ -959,6 +1347,58 @@ class PlayerClass(RBXInstance):
         
         return RBXInstance(TeamAddress, self.memory_module)
 
+    @property
+    def Country(self):
+        return self.memory_module.read_string(
+            self.raw_address,
+            self.offset_base["Country"]
+        )
+
+    @property
+    def MinZoomDistance(self):
+        return self.memory_module.read_float(
+            self.raw_address,
+            self.offset_base["MinZoomDistance"]
+        )
+
+    @MinZoomDistance.setter
+    def MinZoomDistance(self, value: float):
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + self.offset_base["MinZoomDistance"],
+            float(value)
+        )
+
+    @property
+    def MaxZoomDistance(self):
+        return self.memory_module.read_float(
+            self.raw_address,
+            self.offset_base["MaxZoomDistance"]
+        )
+
+    @MaxZoomDistance.setter
+    def MaxZoomDistance(self, value: float):
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + self.offset_base["MaxZoomDistance"],
+            float(value)
+        )
+
+    @property
+    def CameraMode(self):
+        return self.memory_module.read_int(
+            self.raw_address,
+            self.offset_base["CameraMode"]
+        )
+
+    @CameraMode.setter
+    def CameraMode(self, value: int):
+        self._ensure_writable()
+        self.memory_module.write_int(
+            self.raw_address + self.offset_base["CameraMode"],
+            int(value)
+        )
+
 class CameraClass(RBXInstance):
     def __init__(self, memory_module, camera: RBXInstance):
         super().__init__(camera.raw_address, memory_module)
@@ -1014,6 +1454,49 @@ class CameraClass(RBXInstance):
         self.memory_module.write_floats(
             self.raw_address + self.offset_base["ViewportSize"],
             (vec.X, vec.Y)
+        )
+
+    @property
+    def CameraType(self):
+        return self.memory_module.read_int(
+            self.raw_address,
+            self.offset_base["CameraType"]
+        )
+
+    @CameraType.setter
+    def CameraType(self, value: int):
+        self._ensure_writable()
+        self.memory_module.write_int(
+            self.raw_address + self.offset_base["CameraType"],
+            int(value)
+        )
+
+    @property
+    def CameraSubject(self):
+        subject_address = self.memory_module.get_pointer(
+            self.raw_address,
+            self.offset_base["CameraSubject"]
+        )
+
+        if subject_address == 0:
+            return None
+        
+        return RBXInstance(subject_address, self.memory_module)
+
+    @CameraSubject.setter
+    def CameraSubject(self, value):
+        self._ensure_writable()
+        if value is None:
+            target = 0
+        elif isinstance(value, RBXInstance):
+            target = value.raw_address
+        elif isinstance(value, int):
+            target = value
+        else:
+            raise TypeError("CameraSubject must be set to an RBXInstance, int address, or None.")
+        self.memory_module.write_long(
+            self.raw_address + self.offset_base["CameraSubject"],
+            target
         )
 
 # Service #
@@ -1275,6 +1758,16 @@ class DataModel(ServiceBase):
         )
 
     @property
+    def PlaceVersion(self):
+        if not self._ensure_instance():
+            return 0
+
+        return self.memory_module.read_int(
+            self.instance.raw_address,
+            self.offset_base["PlaceVersion"]
+        )
+
+    @property
     def Players(self):
         if not self._ensure_instance():
             return None
@@ -1404,4 +1897,14 @@ class WorkspaceService(ServiceBase):
         self.memory_module.write_float(
             GravityContainer + self.offset_base["Gravity"],
             float(value)
+        )
+
+    @property
+    def DistributedGameTime(self):
+        if self.failed: 
+            return 0.0
+
+        return self.memory_module.read_double(
+            self.instance.raw_address,
+            self.offset_base["DistributedGameTime"]
         )

@@ -47,6 +47,96 @@ class Vector2:
             and self.Y == other.Y
         )
 
+class Color3:
+    def __init__(self, r=0, g=0, b=0):
+        self.R = float(r)
+        self.G = float(g)
+        self.B = float(b)
+
+    def __repr__(self):
+        return f"{self.R}, {self.G}, {self.B}"
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, Color3)
+            and self.R == other.R
+            and self.G == other.G
+            and self.B == other.B
+        )
+    
+    def __add__(self, other):
+        if isinstance(other, Color3):
+            return Color3(self.R + other.R, self.G + other.G, self.B + other.B)
+        raise TypeError("Color3 can only be added to Color3")
+    
+    def __sub__(self, other):
+        if isinstance(other, Color3):
+            return Color3(self.R - other.R, self.G - other.G, self.B - other.B)
+        raise TypeError("Color3 can only be subtracted by Color3")
+    
+    def __mul__(self, other):
+        if isinstance(other, (int, float)):
+            return Color3(self.R * other, self.G * other, self.B * other)
+        if isinstance(other, Color3):
+            return Color3(self.R * other.R, self.G * other.G, self.B * other.B)
+        raise TypeError("Color3 can only be multiplied by Color3 or a number")
+    
+    __rmul__ = __mul__
+    
+    def __truediv__(self, other):
+        if isinstance(other, (int, float)):
+            return Color3(self.R / other, self.G / other, self.B / other)
+        if isinstance(other, Color3):
+            return Color3(self.R / other.R, self.G / other.G, self.B / other.B)
+        raise TypeError("Color3 can only be divided by Color3 or a number")
+    
+    def __neg__(self):
+        return Color3(-self.R, -self.G, -self.B)
+    
+    def ToHex(self):
+        return f"#{int(self.R * 255):02x}{int(self.G * 255):02x}{int(self.B * 255):02x}"
+    
+    def ToTuple(self):
+        return (self.R, self.G, self.B)
+    
+    def ToVector3(self):
+        return Vector3(self.R, self.G, self.B)
+
+    def ToRGB(self):
+        return (int(self.R * 255), int(self.G * 255), int(self.B * 255))
+    
+    def ToHSV(self):
+        maxc = max(self.R, self.G, self.B)
+        minc = min(self.R, self.G, self.B)
+        
+        if maxc == minc:
+            return (0, 0, maxc)
+        
+        h = 0
+        if maxc == self.R:
+            h = (self.G - self.B) / (maxc - minc)
+        elif maxc == self.G:
+            h = 2 + (self.B - self.R) / (maxc - minc)
+        else:
+            h = 4 + (self.R - self.G) / (maxc - minc)
+        
+        return (h / 6, maxc, minc)
+    
+    def ToCMYK(self):
+        if self.R == 0 and self.G == 0 and self.B == 0:
+            return (0, 0, 0, 1)
+        
+        c = 1 - self.R
+        m = 1 - self.G
+        y = 1 - self.B
+        k = min(c, m, y)
+        
+        return (c, m, y, k)
+    
+    def ToCMY(self):
+        return (1 - self.R, 1 - self.G, 1 - self.B)
+        
+
 class Vector3:
     def __init__(self, x=0, y=0, z=0):
         self.X = float(x)
