@@ -56,6 +56,12 @@ Get the local player's name:
 print("Player Name:", game.Players.LocalPlayer.Name)
 ```
 
+## Documentation
+
+- [Overview](docs/index.md)
+- [API Reference](docs/api.md)
+- [Data Types](docs/types.md)
+
 ## License
 
 This project is licensed under the MIT License.
