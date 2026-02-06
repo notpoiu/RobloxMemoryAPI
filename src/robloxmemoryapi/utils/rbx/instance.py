@@ -1339,14 +1339,13 @@ class RBXInstance:
 
         return None
     
-    def WaitForChild(self, name, memoryhandler, timeout=5):
+    def WaitForChild(self, name, timeout=5):
         start = time.time()
         child = None
 
         while time.time() - start < timeout:
             child = self.FindFirstChild(name)
             if child is not None: break
-            if not (memoryhandler.game and not memoryhandler.game.failed): break
             time.sleep(0.1)
 
         return child

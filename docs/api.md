@@ -41,7 +41,7 @@ Traversal and utilities:
 - `GetFullName() -> str`
 - `FindFirstChild(name, recursive=False) -> RBXInstance | None`
 - `FindFirstChildOfClass(classname) -> RBXInstance | None`
-- `WaitForChild(name, memoryhandler, timeout=5) -> RBXInstance | None`
+- `WaitForChild(name, timeout=5) -> RBXInstance | None`
 
 Attributes:
 - `GetAttributes() -> dict[str, AttributeValue]`
