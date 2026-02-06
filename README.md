@@ -28,39 +28,6 @@ pip install -e .
 
 An example script can be found in [example.py](https://raw.githubusercontent.com/notpoiu/RobloxMemoryAPI/refs/heads/main/example.py). If running from the repo, use the editable install above so `import robloxmemoryapi` resolves the `src` package.
 
-Import the library and create a client instance:
-
-```python
-from robloxmemoryapi import RobloxGameClient
-
-client = RobloxGameClient()
-```
-
-To request write access (e.g. to patch values), pass `allow_write=True` when creating the client.
-
-```python
-client = RobloxGameClient(allow_write=True)
-```
-
-Access the data model:
-
-```python
-game = client.DataModel
-```
-
-Kill the local player:
-
-```python
-# (requires allow_write=True when creating the client)
-# allow_write may be detected by roblox. It is disabled by default.
-game.Players.LocalPlayer.Character.Humanoid.Health = 0
-```
-
-Get the local player's name:
-
-```python
-print("Player Name:", game.Players.LocalPlayer.Name)
-```
 
 ## License
 
