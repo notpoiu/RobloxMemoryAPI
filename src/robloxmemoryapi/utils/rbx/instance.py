@@ -725,6 +725,9 @@ class RBXInstance:
                 misc_offsets["Value"]
             )
 
+            if object_address == 0:
+                return None
+
             return RBXInstance(object_address, self.memory_module)
 
         return None
