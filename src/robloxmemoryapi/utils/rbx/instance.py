@@ -2283,23 +2283,16 @@ class LightingService(ServiceBase):
         except (KeyError, OSError):
             self.failed = True
 
-    # props #
+   # props #
     @property
     def ClockTime(self):
         if self.failed: return 0.0
-        return self.memory_module.read_float(
+        
+        # clocktime is in milliseconds
+        return self.memory_module.read_int64(
             self.instance.raw_address,
             self.offset_base["ClockTime"]
-        )
-
-    @ClockTime.setter
-    def ClockTime(self, value: float):
-        if self.failed: return
-        self._ensure_writable()
-        self.memory_module.write_float(
-            self.instance.raw_address + self.offset_base["ClockTime"],
-            float(value)
-        )
+        ) / 3600000000
 
     @property
     def Brightness(self):
