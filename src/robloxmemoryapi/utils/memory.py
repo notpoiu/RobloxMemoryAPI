@@ -211,12 +211,20 @@ class EvasiveProcess:
         if status != STATUS_SUCCESS:
             raise ctypes.WinError(f"NtOpenProcess failed with NTSTATUS: 0x{status:X}")
         self.base = _get_module_base(self.handle)
+        self.is_closed = False
         if self.base == 0:
             self.close()
             raise ConnectionError("Failed to get module base address.")
 
+    @property
+    def is_invalid_handle(self) -> bool:
+        return self.handle and self.handle.value == 0
+
     def read(self, address: int, size: int) -> bytes:
-        if not self.handle or self.handle.value == 0:
+        if self.is_closed:
+            return b""
+        
+        if self.is_invalid_handle:
             raise ValueError("Process handle is not valid.")
         buffer = ctypes.create_string_buffer(size)
         bytes_read = ctypes.c_ulong(0)
@@ -232,7 +240,7 @@ class EvasiveProcess:
         return buffer.raw[:bytes_read.value]
 
     def write(self, address: int, data: bytes | bytearray) -> int:
-        if not self.handle or self.handle.value == 0:
+        if self.is_invalid_handle:
             raise ValueError("Process handle is not valid.")
         if not isinstance(data, (bytes, bytearray)):
             raise TypeError("data must be bytes-like.")
@@ -256,7 +264,10 @@ class EvasiveProcess:
         if size <= 0:
             raise ValueError("size must be greater than zero.")
         
-        if not self.handle or self.handle.value == 0:
+        if self.is_closed:
+            return
+        
+        if self.is_invalid_handle:
             raise ValueError("Process handle is not valid.")
 
         base_address = LPVOID()
@@ -417,6 +428,7 @@ class EvasiveProcess:
 
     #########
     def close(self):
-        if self.handle and self.handle.value != 0:
+        if not self.is_invalid_handle:
+            self.is_closed = True
             nt_close_syscall(self.handle)
             self.handle = HANDLE(0)

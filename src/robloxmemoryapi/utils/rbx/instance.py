@@ -16,6 +16,8 @@ proximityprompt_offsets = Offsets["ProximityPrompt"]
 clickdetector_offsets = Offsets["ClickDetector"]
 statsitem_offsets = Offsets["StatsItem"]
 inputobject_offsets = Offsets["MouseService"]  # InputObject uses MouseService offsets
+animator_offsets = Offsets["Animator"]
+animationtrack_offsets = Offsets["AnimationTrack"]
 
 ROTATION_MATRIX_FLOATS = 9
 
@@ -115,7 +117,6 @@ class RBXInstance:
             self.raw_address,
             basepart_offsets["Primitive"]
         )
-    
 
     # props #
     @property
@@ -173,7 +174,7 @@ class RBXInstance:
             instance_offsets["ClassName"]
         )
         return self.memory_module.read_string(class_name_address)
-    
+
     @property
     def CFrame(self):
         className = self.ClassName
@@ -556,6 +557,36 @@ class RBXInstance:
         else:
             flags &= ~Offsets["PrimitiveFlags"]["CanTouch"]
         self._write_primitive_flags(flags)
+
+    # Animator props #
+    def GetPlayingAnimationTracks(self):
+        if self.ClassName != "Animator":
+            raise AttributeError("GetPlayingAnimationTracks is only available on Animator instances.")
+
+        head = self.memory_module.get_pointer(
+            self.raw_address,
+            animator_offsets["ActiveAnimations"]
+        )
+        if head == 0:
+            return []
+
+        node = self.memory_module.get_pointer(head)
+        result = []
+
+        while node != 0 and node != head:
+            track_address = self.memory_module.get_pointer(node, 0x10)
+            animation_track = AnimationTrack(track_address, self.memory_module, animationtrack_offsets)
+            
+            try:
+                if animation_track.Animation.AnimationId is None:
+                    raise Exception("AnimationId is None")
+                
+                result.append(animation_track)
+            except Exception:
+                pass
+            node = self.memory_module.get_pointer(node)
+
+        return result
 
     # ProximityPrompt props #
     @property
@@ -1137,6 +1168,58 @@ class RBXInstance:
             int(value)
         )
 
+    def MoveTo(self, target, wait=True):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("MoveTo is only available on Humanoid instances.")
+        
+        self._ensure_writable()
+
+        if isinstance(target, RBXInstance):
+            self.memory_module.write_long(
+                self.raw_address + humanoid_offsets["MoveToPart"],
+                target.raw_address
+            )
+            position = target.Position
+        else:
+            position = self._as_vector3(target, "MoveTo target")
+
+        character = self.Parent
+        if character is None:
+            raise RuntimeError("Humanoid has no parent Character model.")
+
+        hrp = character.PrimaryPart
+        if hrp is None:
+            raise RuntimeError("Could not find PrimaryPart in Character.")
+
+        def execute_move():
+            while True:
+                try:
+                    if self.memory_module.is_invalid_handle or self.memory_module.is_closed:
+                        break
+
+                    if hrp.Parent is None or self.Health <= 0:
+                        break
+
+                    current = hrp.Position
+                    if abs(current.X - position.X) <= 1.0 and abs(current.Z - position.Z) <= 1.0:
+                        break
+
+                    self.memory_module.write_floats(
+                        self.raw_address + humanoid_offsets["MoveToPoint"],
+                        (position.X, position.Y, position.Z)
+                    )
+                    self.memory_module.write_bool(
+                        self.raw_address + humanoid_offsets["IsWalking"],
+                        True
+                    )
+                except Exception:
+                    break
+
+        if wait:
+            execute_move()
+        else:
+            threading.Thread(target=execute_move, daemon=True).start()
+
     # adornee / animation props #
     @property
     def Adornee(self):
@@ -1182,7 +1265,6 @@ class RBXInstance:
             self.raw_address + misc_offsets["AnimationId"],
             str(value)
         )
-
 
     # model props #
     @property

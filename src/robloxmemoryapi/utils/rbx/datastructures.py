@@ -354,3 +354,39 @@ class CFrame:
             self.RightVector.Z, self.UpVector.Z, self.LookVector.Z,
             self.Position.X, self.Position.Y, self.Position.Z
         ])
+
+class AnimationTrack:
+    def __init__(self, address, memory_module, offsets):
+        self.raw_address = address
+        self.memory_module = memory_module
+        self._offsets = offsets
+
+    def __repr__(self):
+        return f"AnimationTrack(0x{self.raw_address:X})"
+
+    def __eq__(self, other):
+        return isinstance(other, AnimationTrack) and self.raw_address == other.raw_address
+
+    @property
+    def Animation(self):
+        from .instance import RBXInstance
+        ptr = self.memory_module.get_pointer(self.raw_address, self._offsets["Animation"])
+        return RBXInstance(ptr, self.memory_module) if ptr != 0 else None
+
+    @property
+    def Animator(self):
+        from .instance import RBXInstance
+        ptr = self.memory_module.get_pointer(self.raw_address, self._offsets["Animator"])
+        return RBXInstance(ptr, self.memory_module) if ptr != 0 else None
+
+    @property
+    def Speed(self):
+        return self.memory_module.read_float(self.raw_address, self._offsets["Speed"])
+
+    @property
+    def Looped(self):
+        return self.memory_module.read_bool(self.raw_address, self._offsets["Looped"])
+
+    @property
+    def IsPlaying(self):
+        return self.memory_module.read_bool(self.raw_address, self._offsets["IsPlaying"])
