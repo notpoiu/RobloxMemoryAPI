@@ -80,9 +80,22 @@ class RobloxGameClient:
 
         self.memory_module = EvasiveProcess(self.pid, desired_access)
         self.failed = False
+        self._fflags = None
 
     def close(self):
         self.memory_module.close()
+
+    @property
+    def FFlags(self):
+        if platform.system() != "Windows":
+            raise RuntimeError("This module is only compatible with Windows.")
+        elif self.failed:
+            raise RuntimeError("There was an error while getting access to memory. Please try again later.")
+
+        if self._fflags is None:
+            from .utils.rbx.fflags import FFlagManager
+            self._fflags = FFlagManager(self.memory_module)
+        return self._fflags
 
     @property
     def DataModel(self):
