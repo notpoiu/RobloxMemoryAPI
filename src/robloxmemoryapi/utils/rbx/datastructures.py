@@ -390,3 +390,27 @@ class AnimationTrack:
     @property
     def IsPlaying(self):
         return self.memory_module.read_bool(self.raw_address, self._offsets["IsPlaying"])
+
+class FFlag:
+    __slots__ = ("name", "type", "_value", "offset", "_manager")
+
+    def __init__(self, name: str, flag_type: str, value, offset: int, manager=None):
+        self.name = name
+        self.type = flag_type
+        self._value = value
+        self.offset = offset
+        self._manager = manager
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, new_value):
+        if self._manager is None:
+            raise RuntimeError("Cannot set value: FFlag not bound to an FFlagManager")
+        result = self._manager.set(self.name, new_value)
+        self._value = result._value
+
+    def __repr__(self):
+        return f"FFlag(name={self.name!r}, type={self.type!r}, value={self._value!r})"

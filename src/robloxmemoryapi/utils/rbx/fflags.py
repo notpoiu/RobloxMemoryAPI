@@ -1,4 +1,5 @@
 from ..offsets import get_fflag_offsets
+from .datastructures import FFlag
 
 _MODULE_SIZE_LIMIT = 0x20000000
 
@@ -33,17 +34,6 @@ def _encode_flog(value: str) -> int:
     return (level_byte << 8) | (param & 0xFF)
 
 
-class FFlag:
-    __slots__ = ("name", "type", "value", "offset")
-
-    def __init__(self, name: str, flag_type: str, value, offset: int):
-        self.name = name
-        self.type = flag_type   # "bool", "int", or "string"
-        self.value = value
-        self.offset = offset
-
-    def __repr__(self):
-        return f"FFlag(name={self.name!r}, type={self.type!r}, value={self.value!r})"
 
 class FFlagManager:
     def __init__(self, memory_module):
@@ -109,7 +99,7 @@ class FFlagManager:
         if offset is None:
             return None
         flag_type, value = self._reflect(name, offset)
-        return FFlag(name, flag_type, value, offset)
+        return FFlag(name, flag_type, value, offset, manager=self)
 
     def get_many(self, *names: str) -> dict[str, FFlag]:
         self._ensure_offsets()
@@ -126,7 +116,7 @@ class FFlagManager:
         for name, offset in self._offsets.items():
             try:
                 flag_type, value = self._reflect(name, offset)
-                out[name] = FFlag(name, flag_type, value, offset)
+                out[name] = FFlag(name, flag_type, value, offset, manager=self)
             except OSError:
                 pass
         return out
@@ -165,7 +155,7 @@ class FFlagManager:
             raise RuntimeError(f"Cannot write to flag with unknown type '{flag_type}'")
 
         new_type, new_value = self._reflect(name, offset)
-        return FFlag(name, new_type, new_value, offset)
+        return FFlag(name, new_type, new_value, offset, manager=self)
 
     def __getitem__(self, name: str) -> FFlag:
         flag = self.get(name)
