@@ -4,14 +4,15 @@ _MODULE_SIZE_LIMIT = 0x20000000
 
 # FLog level byte → display name.
 _FLOG_LEVELS = {
-    0: "None",
-    1: "Trace",
-    2: "Info",
+    2: "Error",
     3: "Warning",
-    4: "Error",
-    5: "Assert",
-    6: "Fatal",
+    4: "Info",
+    5: "Debug",
+    6: "Verbose",
+    255: "None",
 }
+
+_VALID_FLOG_LEVELS = set(_FLOG_LEVELS.keys())
 
 _FLOG_LEVELS_REV = {v: k for k, v in _FLOG_LEVELS.items()}
 
@@ -77,7 +78,11 @@ class FFlagManager:
                 return "bool", bool(raw[0])
             else:
                 raw_int = int.from_bytes(raw[0:4], "little")
-                return "string", _decode_flog(raw_int)
+                level_byte = (raw_int >> 8) & 0xFF
+                if level_byte in _VALID_FLOG_LEVELS:
+                    return "flog", _decode_flog(raw_int)
+                else:
+                    return "int", int.from_bytes(raw[0:4], "little", signed=True)
         else:
             str_len = int.from_bytes(raw[16:24], "little")
             str_cap = int.from_bytes(raw[24:32], "little")
@@ -146,17 +151,16 @@ class FFlagManager:
             self._mem.write_int(addr, value)
 
         elif flag_type == "string":
+            if not isinstance(value, str):
+                raise TypeError(f"Expected str for flag '{name}', got {type(value).__name__}")
+
+            self._mem.write_string(addr, str(value))
+
+        elif flag_type == "flog":
             if not isinstance(value, (str, int)):
                 raise TypeError(f"Expected str or int for flag '{name}', got {type(value).__name__}")
 
-            _, current = self._reflect(name, offset)
-            is_flog = isinstance(current, str) and "," in current
-
-            if is_flog:
-                self._mem.write_int(addr, _encode_flog(str(value)) if isinstance(value, str) else value)
-            else:
-                self._mem.write_string(addr, str(value))
-
+            self._mem.write_int(addr, _encode_flog(str(value)) if isinstance(value, str) else value)
         else:
             raise RuntimeError(f"Cannot write to flag with unknown type '{flag_type}'")
 
