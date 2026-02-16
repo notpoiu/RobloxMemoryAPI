@@ -7,6 +7,7 @@ from .bytecode import decryptor, encryptor
 
 instance_offsets = Offsets["Instance"]
 basepart_offsets = Offsets["BasePart"]
+primitive_offsets = Offsets["Primitive"]
 camera_offsets = Offsets["Camera"]
 gui_offsets = Offsets["GuiObject"]
 misc_offsets = Offsets["Misc"]
@@ -18,6 +19,8 @@ statsitem_offsets = Offsets["StatsItem"]
 inputobject_offsets = Offsets["MouseService"]  # InputObject uses MouseService offsets
 animator_offsets = Offsets["Animator"]
 animationtrack_offsets = Offsets["AnimationTrack"]
+tool_offsets = Offsets["Tool"]
+world_offsets = Offsets["World"]
 
 ROTATION_MATRIX_FLOATS = 9
 
@@ -141,6 +144,11 @@ class RBXInstance:
         else:
             raise TypeError("Parent must be set to an RBXInstance, int address, or None.")
         self._ensure_writable()
+
+        current_parent = self.Parent
+        if current_parent is not None:
+            current_parent.Children.remove(self)
+        
         self.memory_module.write_long(
             self.raw_address + instance_offsets["Parent"],
             target
@@ -181,11 +189,11 @@ class RBXInstance:
 
         if "part" in className.lower():
             CFrameRotation = self.memory_module.read_floats(
-                self.primitive_address + basepart_offsets["Rotation"],
+                self.primitive_address + primitive_offsets["Rotation"],
                 ROTATION_MATRIX_FLOATS
             )
             PositionData = self.memory_module.read_floats(
-                self.primitive_address + basepart_offsets["Position"],
+                self.primitive_address + primitive_offsets["Position"],
                 3
             )
         elif className == "Camera":
@@ -226,8 +234,8 @@ class RBXInstance:
 
         className = self.ClassName
         if "part" in className.lower():
-            rotation_address = self.primitive_address + basepart_offsets["Rotation"]
-            position_address = self.primitive_address + basepart_offsets["Position"]
+            rotation_address = self.primitive_address + primitive_offsets["Rotation"]
+            position_address = self.primitive_address + primitive_offsets["Position"]
         elif className == "Camera":
             rotation_address = self.raw_address + camera_offsets["Rotation"]
             position_address = self.raw_address + camera_offsets["Position"]
@@ -242,7 +250,7 @@ class RBXInstance:
         className = self.ClassName.lower()
         if "part" in className:
             position_vector3 = self.memory_module.read_floats(
-                self.primitive_address + basepart_offsets["Position"],
+                self.primitive_address + primitive_offsets["Position"],
                 3
             )
             return Vector3(*position_vector3)
@@ -263,7 +271,7 @@ class RBXInstance:
         if "part" in className:
             vec = self._as_vector3(value, "Position")
             self.memory_module.write_floats(
-                self.primitive_address + basepart_offsets["Position"],
+                self.primitive_address + primitive_offsets["Position"],
                 (vec.X, vec.Y, vec.Z)
             )
 
@@ -284,7 +292,7 @@ class RBXInstance:
 
         if "part" in className.lower():
             velocity_vector3 = self.memory_module.read_floats(
-                self.primitive_address + basepart_offsets["AssemblyLinearVelocity"],
+                self.primitive_address + primitive_offsets["AssemblyLinearVelocity"],
                 3
             )
             return Vector3(*velocity_vector3)
@@ -301,7 +309,7 @@ class RBXInstance:
         
         self._ensure_writable()
         self.memory_module.write_floats(
-            self.primitive_address + basepart_offsets["AssemblyLinearVelocity"],
+            self.primitive_address + primitive_offsets["AssemblyLinearVelocity"],
             (vec.X, vec.Y, vec.Z)
         )
 
@@ -311,7 +319,7 @@ class RBXInstance:
 
         if "part" in className.lower():
             velocity_vector3 = self.memory_module.read_floats(
-                self.primitive_address + basepart_offsets["AssemblyAngularVelocity"],
+                self.primitive_address + primitive_offsets["AssemblyAngularVelocity"],
                 3
             )
             return Vector3(*velocity_vector3)
@@ -328,7 +336,7 @@ class RBXInstance:
         
         self._ensure_writable()
         self.memory_module.write_floats(
-            self.primitive_address + basepart_offsets["AssemblyAngularVelocity"],
+            self.primitive_address + primitive_offsets["AssemblyAngularVelocity"],
             (vec.X, vec.Y, vec.Z)
         )
 
@@ -367,6 +375,16 @@ class RBXInstance:
                 self.raw_address,
                 proximityprompt_offsets["Enabled"]
             )
+        elif self.ClassName == "Tool":
+            return self.memory_module.read_bool(
+                self.raw_address,
+                tool_offsets["Enabled"]
+            )
+        elif self.ClassName == "ColorCorrectionEffect":
+            return self.memory_module.read_bool(
+                self.raw_address,
+                Offsets["ColorCorrectionEffect"]["Enabled"]
+            )
         return None
 
     @Enabled.setter
@@ -383,8 +401,20 @@ class RBXInstance:
                 self.raw_address + proximityprompt_offsets["Enabled"],
                 value
             )
+        elif self.ClassName == "Tool":
+            self._ensure_writable()
+            self.memory_module.write_bool(
+                self.raw_address + tool_offsets["Enabled"],
+                bool(value)
+            )
+        elif self.ClassName == "ColorCorrectionEffect":
+            self._ensure_writable()
+            self.memory_module.write_bool(
+                self.raw_address + Offsets["ColorCorrectionEffect"]["Enabled"],
+                bool(value)
+            )
         else:
-            raise AttributeError("Enabled is only available on ScreenGui or ProximityPrompt instances.")
+            raise AttributeError("Enabled is only available on ScreenGui, ProximityPrompt, Tool, or ColorCorrectionEffect instances.")
     
     @property
     def Visible(self):
@@ -420,7 +450,7 @@ class RBXInstance:
     def Size(self):
         if "part" in self.ClassName.lower():
             size_vector3 = self.memory_module.read_floats(
-                self.primitive_address + basepart_offsets["Size"],
+                self.primitive_address + primitive_offsets["Size"],
                 3
             )
             return Vector3(*size_vector3)
@@ -433,7 +463,7 @@ class RBXInstance:
         if "part" in self.ClassName.lower():
             vec = self._as_vector3(value, "Size")
             self.memory_module.write_floats(
-                self.primitive_address + basepart_offsets["Size"],
+                self.primitive_address + primitive_offsets["Size"],
                 (vec.X, vec.Y, vec.Z)
             )
         else:
@@ -486,7 +516,7 @@ class RBXInstance:
 
     def _read_primitive_flags(self):
         data = self.memory_module.read(
-            self.primitive_address + basepart_offsets["PrimitiveFlags"], 
+            self.primitive_address + primitive_offsets["Flags"], 
             1
         )
         return int.from_bytes(data, 'little') if data else 0
@@ -494,7 +524,7 @@ class RBXInstance:
     def _write_primitive_flags(self, flags: int):
         self._ensure_writable()
         self.memory_module.write(
-            self.primitive_address + basepart_offsets["PrimitiveFlags"],
+            self.primitive_address + primitive_offsets["Flags"],
             (flags & 0xFF).to_bytes(1, 'little')
         )
 
@@ -905,6 +935,203 @@ class RBXInstance:
         self.memory_module.write_float(
             self.raw_address + gui_offsets["Rotation"],
             float(value)
+        )
+
+    @property
+    def BackgroundTransparency(self):
+        return self.memory_module.read_float(
+            self.raw_address,
+            gui_offsets["BackgroundTransparency"]
+        )
+
+    @BackgroundTransparency.setter
+    def BackgroundTransparency(self, value: float):
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + gui_offsets["BackgroundTransparency"],
+            float(value)
+        )
+
+    @property
+    def ZIndex(self):
+        return self.memory_module.read_int(
+            self.raw_address,
+            gui_offsets["ZIndex"]
+        )
+
+    @ZIndex.setter
+    def ZIndex(self, value: int):
+        self._ensure_writable()
+        self.memory_module.write_int(
+            self.raw_address + gui_offsets["ZIndex"],
+            int(value)
+        )
+
+    # tool props #
+    @property
+    def CanBeDropped(self):
+        if self.ClassName != "Tool":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            tool_offsets["CanBeDropped"]
+        )
+
+    @CanBeDropped.setter
+    def CanBeDropped(self, value: bool):
+        if self.ClassName != "Tool":
+            raise AttributeError("CanBeDropped is only available on Tool instances.")
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + tool_offsets["CanBeDropped"],
+            bool(value)
+        )
+
+    @property
+    def Grip(self):
+        if self.ClassName != "Tool":
+            return None
+        grip_data = self.memory_module.read_floats(
+            self.raw_address + tool_offsets["Grip"],
+            12  # CFrame: 9 rotation + 3 position
+        )
+        return grip_data
+
+    @property
+    def ManualActivationOnly(self):
+        if self.ClassName != "Tool":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            tool_offsets["ManualActivationOnly"]
+        )
+
+    @ManualActivationOnly.setter
+    def ManualActivationOnly(self, value: bool):
+        if self.ClassName != "Tool":
+            raise AttributeError("ManualActivationOnly is only available on Tool instances.")
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + tool_offsets["ManualActivationOnly"],
+            bool(value)
+        )
+
+    @property
+    def RequiresHandle(self):
+        if self.ClassName != "Tool":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            tool_offsets["RequiresHandle"]
+        )
+
+    @RequiresHandle.setter
+    def RequiresHandle(self, value: bool):
+        if self.ClassName != "Tool":
+            raise AttributeError("RequiresHandle is only available on Tool instances.")
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + tool_offsets["RequiresHandle"],
+            bool(value)
+        )
+
+    @property
+    def TextureId(self):
+        if self.ClassName != "Tool":
+            return None
+        return self.memory_module.read_string(
+            self.raw_address,
+            tool_offsets["TextureId"]
+        )
+
+    @TextureId.setter
+    def TextureId(self, value: str):
+        if self.ClassName != "Tool":
+            raise AttributeError("TextureId is only available on Tool instances.")
+        self._ensure_writable()
+        self.memory_module.write_string(
+            self.raw_address + tool_offsets["TextureId"],
+            str(value)
+        )
+
+    @property
+    def Tooltip(self):
+        if self.ClassName != "Tool":
+            return None
+        return self.memory_module.read_string(
+            self.raw_address,
+            tool_offsets["Tooltip"]
+        )
+
+    @Tooltip.setter
+    def Tooltip(self, value: str):
+        if self.ClassName != "Tool":
+            raise AttributeError("Tooltip is only available on Tool instances.")
+        self._ensure_writable()
+        self.memory_module.write_string(
+            self.raw_address + tool_offsets["Tooltip"],
+            str(value)
+        )
+
+    # colorcorrection props #
+    @property
+    def Brightness(self):
+        if self.ClassName == "ColorCorrectionEffect":
+            return self.memory_module.read_float(
+                self.raw_address,
+                Offsets["ColorCorrectionEffect"]["Brightness"]
+            )
+        return None
+
+    @Brightness.setter
+    def Brightness(self, value: float):
+        if self.ClassName == "ColorCorrectionEffect":
+            self._ensure_writable()
+            self.memory_module.write_float(
+                self.raw_address + Offsets["ColorCorrectionEffect"]["Brightness"],
+                float(value)
+            )
+        else:
+            raise AttributeError("Brightness is only available on ColorCorrectionEffect instances (use LightingService.Brightness for Lighting).")
+
+    @property
+    def Contrast(self):
+        if self.ClassName != "ColorCorrectionEffect":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address,
+            Offsets["ColorCorrectionEffect"]["Contrast"]
+        )
+
+    @Contrast.setter
+    def Contrast(self, value: float):
+        if self.ClassName != "ColorCorrectionEffect":
+            raise AttributeError("Contrast is only available on ColorCorrectionEffect instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + Offsets["ColorCorrectionEffect"]["Contrast"],
+            float(value)
+        )
+
+    @property
+    def TintColor(self):
+        if self.ClassName != "ColorCorrectionEffect":
+            return None
+        color_data = self.memory_module.read_floats(
+            self.raw_address + Offsets["ColorCorrectionEffect"]["TintColor"],
+            3
+        )
+        return Color3(*color_data)
+
+    @TintColor.setter
+    def TintColor(self, value):
+        if self.ClassName != "ColorCorrectionEffect":
+            raise AttributeError("TintColor is only available on ColorCorrectionEffect instances.")
+        self._ensure_writable()
+        vec = self._as_color3(value, "TintColor")
+        self.memory_module.write_floats(
+            self.raw_address + Offsets["ColorCorrectionEffect"]["TintColor"],
+            (vec.X, vec.Y, vec.Z)
         )
 
     # humanoid props #
@@ -1353,6 +1580,35 @@ class RBXInstance:
 
         self.memory_module.write_long(bytecode_ptr + Offsets["ByteCode"]["Pointer"], new_content_ptr)
         self.memory_module.write_int(bytecode_ptr + Offsets["ByteCode"]["Size"], new_size)
+
+    # script identification #
+    @property
+    def GUID(self):
+        classname = self.ClassName
+        if classname == "LocalScript":
+            guid_offset = Offsets["LocalScript"]["GUID"]
+        elif classname == "ModuleScript":
+            guid_offset = Offsets["ModuleScript"]["GUID"]
+        else:
+            return None
+        return self.memory_module.read_string(
+            self.raw_address,
+            guid_offset
+        )
+
+    @property
+    def Hash(self):
+        classname = self.ClassName
+        if classname == "LocalScript":
+            hash_offset = Offsets["LocalScript"]["Hash"]
+        elif classname == "ModuleScript":
+            hash_offset = Offsets["ModuleScript"]["Hash"]
+        else:
+            return None
+        return self.memory_module.read_string(
+            self.raw_address,
+            hash_offset
+        )
     
     # functions #
     def GetChildren(self):
@@ -1723,6 +1979,36 @@ class PlayerClass(RBXInstance):
         self.memory_module.write_int(
             self.raw_address + self.offset_base["CameraMode"],
             int(value)
+        )
+
+    @property
+    def HealthDisplayDistance(self):
+        return self.memory_module.read_float(
+            self.raw_address,
+            self.offset_base["HealthDisplayDistance"]
+        )
+
+    @HealthDisplayDistance.setter
+    def HealthDisplayDistance(self, value: float):
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + self.offset_base["HealthDisplayDistance"],
+            float(value)
+        )
+
+    @property
+    def NameDisplayDistance(self):
+        return self.memory_module.read_float(
+            self.raw_address,
+            self.offset_base["NameDisplayDistance"]
+        )
+
+    @NameDisplayDistance.setter
+    def NameDisplayDistance(self, value: float):
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + self.offset_base["NameDisplayDistance"],
+            float(value)
         )
 
 class CameraClass(RBXInstance):
@@ -2235,27 +2521,27 @@ class WorkspaceService(ServiceBase):
     
     @property
     def Gravity(self):
-        GravityContainer = self.memory_module.get_pointer(
+        World = self.memory_module.get_pointer(
             self.instance.raw_address,
-            self.offset_base["GravityContainer"]
+            self.offset_base["World"]
         )
 
         return self.memory_module.read_float(
-            GravityContainer,
-            self.offset_base["Gravity"]
+            World,
+            world_offsets["Gravity"]
         )
 
     @Gravity.setter
     def Gravity(self, value: float):
         self._ensure_writable()
 
-        GravityContainer = self.memory_module.get_pointer(
+        World = self.memory_module.get_pointer(
             self.instance.raw_address,
-            self.offset_base["GravityContainer"]
+            self.offset_base["World"]
         )
 
         self.memory_module.write_float(
-            GravityContainer + self.offset_base["Gravity"],
+            World + world_offsets["Gravity"],
             float(value)
         )
 
@@ -2466,6 +2752,77 @@ class LightingService(ServiceBase):
         self._ensure_writable()
         self.memory_module.write_float(
             self.instance.raw_address + self.offset_base["GeographicLatitude"],
+            float(value)
+        )
+
+    @property
+    def Sky(self):
+        if self.failed: return None
+        sky_ptr = self.memory_module.get_pointer(
+            self.instance.raw_address,
+            self.offset_base["Sky"]
+        )
+        if sky_ptr == 0:
+            return None
+        return RBXInstance(sky_ptr, self.memory_module)
+
+    @property
+    def Source(self):
+        if self.failed: return None
+        return self.memory_module.read_int(
+            self.instance.raw_address,
+            self.offset_base["Source"]
+        )
+
+    @property
+    def SunPosition(self):
+        if self.failed: return None
+        pos_data = self.memory_module.read_floats(
+            self.instance.raw_address + self.offset_base["SunPosition"],
+            3
+        )
+        return Vector3(*pos_data)
+
+    @property
+    def MoonPosition(self):
+        if self.failed: return None
+        pos_data = self.memory_module.read_floats(
+            self.instance.raw_address + self.offset_base["MoonPosition"],
+            3
+        )
+        return Vector3(*pos_data)
+
+    @property
+    def EnvironmentDiffuseScale(self):
+        if self.failed: return 0.0
+        return self.memory_module.read_float(
+            self.instance.raw_address,
+            self.offset_base["EnvironmentDiffuseScale"]
+        )
+
+    @EnvironmentDiffuseScale.setter
+    def EnvironmentDiffuseScale(self, value: float):
+        if self.failed: return
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.instance.raw_address + self.offset_base["EnvironmentDiffuseScale"],
+            float(value)
+        )
+
+    @property
+    def EnvironmentSpecularScale(self):
+        if self.failed: return 0.0
+        return self.memory_module.read_float(
+            self.instance.raw_address,
+            self.offset_base["EnvironmentSpecularScale"]
+        )
+
+    @EnvironmentSpecularScale.setter
+    def EnvironmentSpecularScale(self, value: float):
+        if self.failed: return
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.instance.raw_address + self.offset_base["EnvironmentSpecularScale"],
             float(value)
         )
 
