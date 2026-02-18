@@ -21,6 +21,11 @@ animator_offsets = Offsets["Animator"]
 animationtrack_offsets = Offsets["AnimationTrack"]
 tool_offsets = Offsets["Tool"]
 world_offsets = Offsets["World"]
+sound_offsets = Offsets["Sound"]
+spawnlocation_offsets = Offsets["SpawnLocation"]
+clothing_offsets = Offsets["Clothing"]
+charactermesh_offsets = Offsets["CharacterMesh"]
+attachment_offsets = Offsets["Attachment"]
 
 ROTATION_MATRIX_FLOATS = 9
 
@@ -385,6 +390,11 @@ class RBXInstance:
                 self.raw_address,
                 Offsets["ColorCorrectionEffect"]["Enabled"]
             )
+        elif self.ClassName == "SpawnLocation":
+            return self.memory_module.read_bool(
+                self.raw_address,
+                spawnlocation_offsets["Enabled"]
+            )
         return None
 
     @Enabled.setter
@@ -413,8 +423,14 @@ class RBXInstance:
                 self.raw_address + Offsets["ColorCorrectionEffect"]["Enabled"],
                 bool(value)
             )
+        elif self.ClassName == "SpawnLocation":
+            self._ensure_writable()
+            self.memory_module.write_bool(
+                self.raw_address + spawnlocation_offsets["Enabled"],
+                bool(value)
+            )
         else:
-            raise AttributeError("Enabled is only available on ScreenGui, ProximityPrompt, Tool, or ColorCorrectionEffect instances.")
+            raise AttributeError("Enabled is only available on ScreenGui, ProximityPrompt, Tool, ColorCorrectionEffect, or SpawnLocation instances.")
     
     @property
     def Visible(self):
@@ -1132,6 +1148,334 @@ class RBXInstance:
         self.memory_module.write_floats(
             self.raw_address + Offsets["ColorCorrectionEffect"]["TintColor"],
             (vec.X, vec.Y, vec.Z)
+        )
+
+    # attachment props #
+    @property
+    def AttachmentPosition(self):
+        if self.ClassName != "Attachment":
+            return None
+        pos_data = self.memory_module.read_floats(
+            self.raw_address + attachment_offsets["Position"],
+            3
+        )
+        return Vector3(*pos_data)
+
+    @AttachmentPosition.setter
+    def AttachmentPosition(self, value):
+        if self.ClassName != "Attachment":
+            raise AttributeError("AttachmentPosition is only available on Attachment instances.")
+        self._ensure_writable()
+        vec = self._as_vector3(value, "AttachmentPosition")
+        self.memory_module.write_floats(
+            self.raw_address + attachment_offsets["Position"],
+            (vec.X, vec.Y, vec.Z)
+        )
+
+    # charactermesh props #
+    @property
+    def BaseTextureId(self):
+        if self.ClassName != "CharacterMesh":
+            return None
+        return self.memory_module.read_long(
+            self.raw_address,
+            charactermesh_offsets["BaseTextureId"]
+        )
+
+    @BaseTextureId.setter
+    def BaseTextureId(self, value: int):
+        if self.ClassName != "CharacterMesh":
+            raise AttributeError("BaseTextureId is only available on CharacterMesh instances.")
+        self._ensure_writable()
+        self.memory_module.write_long(
+            self.raw_address + charactermesh_offsets["BaseTextureId"],
+            int(value)
+        )
+
+    @property
+    def OverlayTextureId(self):
+        if self.ClassName != "CharacterMesh":
+            return None
+        return self.memory_module.read_long(
+            self.raw_address,
+            charactermesh_offsets["OverlayTextureId"]
+        )
+
+    @OverlayTextureId.setter
+    def OverlayTextureId(self, value: int):
+        if self.ClassName != "CharacterMesh":
+            raise AttributeError("OverlayTextureId is only available on CharacterMesh instances.")
+        self._ensure_writable()
+        self.memory_module.write_long(
+            self.raw_address + charactermesh_offsets["OverlayTextureId"],
+            int(value)
+        )
+
+    @property
+    def BodyPart(self):
+        if self.ClassName != "CharacterMesh":
+            return None
+        return self.memory_module.read_int(
+            self.raw_address,
+            charactermesh_offsets["BodyPart"]
+        )
+
+    @property
+    def CharacterMeshId(self):
+        if self.ClassName != "CharacterMesh":
+            return None
+        return self.memory_module.read_long(
+            self.raw_address,
+            charactermesh_offsets["MeshId"]
+        )
+
+    # clothing props (Shirt/Pants) #
+    @property
+    def ClothingColor3(self):
+        cn = self.ClassName
+        if cn != "Shirt" and cn != "Pants":
+            return None
+        color_data = self.memory_module.read_floats(
+            self.raw_address + clothing_offsets["Color3"],
+            3
+        )
+        return Color3(*color_data)
+
+    @ClothingColor3.setter
+    def ClothingColor3(self, value):
+        cn = self.ClassName
+        if cn != "Shirt" and cn != "Pants":
+            raise AttributeError("ClothingColor3 is only available on Shirt or Pants instances.")
+        self._ensure_writable()
+        vec = self._as_color3(value, "ClothingColor3")
+        self.memory_module.write_floats(
+            self.raw_address + clothing_offsets["Color3"],
+            (vec.X, vec.Y, vec.Z)
+        )
+
+    @property
+    def Template(self):
+        cn = self.ClassName
+        if cn != "Shirt" and cn != "Pants":
+            return None
+        return self.memory_module.read_string(
+            self.raw_address,
+            clothing_offsets["Template"]
+        )
+
+    @Template.setter
+    def Template(self, value: str):
+        cn = self.ClassName
+        if cn != "Shirt" and cn != "Pants":
+            raise AttributeError("Template is only available on Shirt or Pants instances.")
+        self._ensure_writable()
+        self.memory_module.write_string(
+            self.raw_address + clothing_offsets["Template"],
+            str(value)
+        )
+
+    # sound props #
+    @property
+    def SoundId(self):
+        if self.ClassName != "Sound":
+            return None
+        return self.memory_module.read_string(
+            self.raw_address,
+            sound_offsets["SoundId"]
+        )
+
+    @SoundId.setter
+    def SoundId(self, value: str):
+        if self.ClassName != "Sound":
+            raise AttributeError("SoundId is only available on Sound instances.")
+        self._ensure_writable()
+        self.memory_module.write_string(
+            self.raw_address + sound_offsets["SoundId"],
+            str(value)
+        )
+
+    @property
+    def Volume(self):
+        if self.ClassName != "Sound":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address,
+            sound_offsets["Volume"]
+        )
+
+    @Volume.setter
+    def Volume(self, value: float):
+        if self.ClassName != "Sound":
+            raise AttributeError("Volume is only available on Sound instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + sound_offsets["Volume"],
+            float(value)
+        )
+
+    @property
+    def PlaybackSpeed(self):
+        if self.ClassName != "Sound":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address,
+            sound_offsets["PlaybackSpeed"]
+        )
+
+    @PlaybackSpeed.setter
+    def PlaybackSpeed(self, value: float):
+        if self.ClassName != "Sound":
+            raise AttributeError("PlaybackSpeed is only available on Sound instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + sound_offsets["PlaybackSpeed"],
+            float(value)
+        )
+
+    @property
+    def Looped(self):
+        if self.ClassName != "Sound":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            sound_offsets["Looped"]
+        )
+
+    @Looped.setter
+    def Looped(self, value: bool):
+        if self.ClassName != "Sound":
+            raise AttributeError("Looped is only available on Sound instances.")
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + sound_offsets["Looped"],
+            bool(value)
+        )
+
+    @property
+    def RollOffMaxDistance(self):
+        if self.ClassName != "Sound":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address,
+            sound_offsets["RollOffMaxDistance"]
+        )
+
+    @RollOffMaxDistance.setter
+    def RollOffMaxDistance(self, value: float):
+        if self.ClassName != "Sound":
+            raise AttributeError("RollOffMaxDistance is only available on Sound instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + sound_offsets["RollOffMaxDistance"],
+            float(value)
+        )
+
+    @property
+    def RollOffMinDistance(self):
+        if self.ClassName != "Sound":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address,
+            sound_offsets["RollOffMinDistance"]
+        )
+
+    @RollOffMinDistance.setter
+    def RollOffMinDistance(self, value: float):
+        if self.ClassName != "Sound":
+            raise AttributeError("RollOffMinDistance is only available on Sound instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + sound_offsets["RollOffMinDistance"],
+            float(value)
+        )
+
+    @property
+    def SoundGroup(self):
+        if self.ClassName != "Sound":
+            return None
+        ptr = self.memory_module.get_pointer(
+            self.raw_address,
+            sound_offsets["SoundGroup"]
+        )
+        if ptr == 0:
+            return None
+        return RBXInstance(ptr, self.memory_module)
+
+    # spawnlocation props #
+    @property
+    def AllowTeamChangeOnTouch(self):
+        if self.ClassName != "SpawnLocation":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            spawnlocation_offsets["AllowTeamChangeOnTouch"]
+        )
+
+    @AllowTeamChangeOnTouch.setter
+    def AllowTeamChangeOnTouch(self, value: bool):
+        if self.ClassName != "SpawnLocation":
+            raise AttributeError("AllowTeamChangeOnTouch is only available on SpawnLocation instances.")
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + spawnlocation_offsets["AllowTeamChangeOnTouch"],
+            bool(value)
+        )
+
+    @property
+    def Neutral(self):
+        if self.ClassName != "SpawnLocation":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            spawnlocation_offsets["Neutral"]
+        )
+
+    @Neutral.setter
+    def Neutral(self, value: bool):
+        if self.ClassName != "SpawnLocation":
+            raise AttributeError("Neutral is only available on SpawnLocation instances.")
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + spawnlocation_offsets["Neutral"],
+            bool(value)
+        )
+
+    @property
+    def ForcefieldDuration(self):
+        if self.ClassName != "SpawnLocation":
+            return None
+        return self.memory_module.read_int(
+            self.raw_address,
+            spawnlocation_offsets["ForcefieldDuration"]
+        )
+
+    @ForcefieldDuration.setter
+    def ForcefieldDuration(self, value: int):
+        if self.ClassName != "SpawnLocation":
+            raise AttributeError("ForcefieldDuration is only available on SpawnLocation instances.")
+        self._ensure_writable()
+        self.memory_module.write_int(
+            self.raw_address + spawnlocation_offsets["ForcefieldDuration"],
+            int(value)
+        )
+
+    @property
+    def TeamColor(self):
+        if self.ClassName != "SpawnLocation":
+            return None
+        return self.memory_module.read_int(
+            self.raw_address,
+            spawnlocation_offsets["TeamColor"]
+        )
+
+    @TeamColor.setter
+    def TeamColor(self, value: int):
+        if self.ClassName != "SpawnLocation":
+            raise AttributeError("TeamColor is only available on SpawnLocation instances.")
+        self._ensure_writable()
+        self.memory_module.write_int(
+            self.raw_address + spawnlocation_offsets["TeamColor"],
+            int(value)
         )
 
     # humanoid props #
@@ -2553,6 +2897,35 @@ class WorkspaceService(ServiceBase):
         return self.memory_module.read_double(
             self.instance.raw_address,
             self.offset_base["DistributedGameTime"]
+        )
+
+    @property
+    def WorldStepsPerSec(self):
+        if self.failed:
+            return 0.0
+
+        World = self.memory_module.get_pointer(
+            self.instance.raw_address,
+            self.offset_base["World"]
+        )
+
+        return self.memory_module.read_float(
+            World,
+            world_offsets["worldStepsPerSec"]
+        )
+
+    @WorldStepsPerSec.setter
+    def WorldStepsPerSec(self, value: float):
+        self._ensure_writable()
+
+        World = self.memory_module.get_pointer(
+            self.instance.raw_address,
+            self.offset_base["World"]
+        )
+
+        self.memory_module.write_float(
+            World + world_offsets["worldStepsPerSec"],
+            float(value)
         )
 
 class LightingService(ServiceBase):
