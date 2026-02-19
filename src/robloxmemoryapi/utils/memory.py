@@ -290,15 +290,15 @@ class EvasiveProcess:
     # numbers #
     def read_int(self, address: int, offset: int = 0) -> int:
         buffer = self.read(address + offset, 4)
-        return int.from_bytes(buffer, 'little') if len(buffer) == 4 else 0
+        return int.from_bytes(buffer, 'little', signed=True) if len(buffer) == 4 else 0
         
     def read_int64(self, address: int, offset: int = 0) -> int:
         buffer = self.read(address + offset, 8)
-        return int.from_bytes(buffer, 'little') if len(buffer) == 8 else 0
+        return int.from_bytes(buffer, 'little', signed=True) if len(buffer) == 8 else 0
     
     def read_long(self, address: int, offset: int = 0) -> int:
         buffer = self.read(address + offset, 8)
-        return int.from_bytes(buffer, 'little') if len(buffer) == 8 else 0
+        return int.from_bytes(buffer, 'little', signed=True) if len(buffer) == 8 else 0
     
     def read_double(self, address: int, offset: int = 0) -> float:
         try:
@@ -332,13 +332,13 @@ class EvasiveProcess:
             return [0.0]
     
     def write_int(self, address: int, value: int) -> None:
-        self.write(address, struct.pack('<I', value & 0xFFFFFFFF))
+        self.write(address, struct.pack('<i', value & 0xFFFFFFFF))
 
     def write_int64(self, address: int, value: int) -> None:
-        self.write(address, struct.pack('<Q', value & 0xFFFFFFFFFFFFFFFF))
+        self.write(address, struct.pack('<q', value & 0xFFFFFFFFFFFFFFFF))
 
     def write_long(self, address: int, value: int) -> None:
-        self.write(address, struct.pack('<Q', value & 0xFFFFFFFFFFFFFFFF))
+        self.write(address, struct.pack('<q', value & 0xFFFFFFFFFFFFFFFF))
 
     def write_double(self, address: int, value: float) -> None:
         self.write(address, struct.pack('<d', value))

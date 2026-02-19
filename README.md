@@ -4,6 +4,8 @@
 
 This was made by [upio](https://github.com/notpoiu), [mstudio45](https://github.com/mstudio45), and [Master Oogway](https://github.com/ActualMasterOogway) and created for the [Dig Macro](https://github.com/mstudio45/digmacro) project (external mode and not the computer vision mode).
 
+Offsets are sourced from [imtheo.lol](https://imtheo.lol/Offsets). This project is not affilated with imtheo.lol in any way.
+
 ## Installation
 
 PyPI:

@@ -10,6 +10,7 @@ basepart_offsets = Offsets["BasePart"]
 primitive_offsets = Offsets["Primitive"]
 camera_offsets = Offsets["Camera"]
 gui_offsets = Offsets["GuiObject"]
+gui_2d_offsets = Offsets["GuiBase2D"]
 misc_offsets = Offsets["Misc"]
 humanoid_offsets = Offsets["Humanoid"]
 model_offsets = Offsets["Model"]
@@ -265,6 +266,12 @@ class RBXInstance:
                 3
             )
             return Vector3(*position_vector3)
+        elif className == "attachment":
+            position_vector3 = self.memory_module.read_floats(
+                self.raw_address + attachment_offsets["Position"],
+                3
+            )
+            return Vector3(*position_vector3)
         else:
             return self._read_udim2(self.raw_address + gui_offsets["Position"])
 
@@ -284,6 +291,13 @@ class RBXInstance:
             vec = self._as_vector3(value, "Position")
             self.memory_module.write_floats(
                 self.raw_address + camera_offsets["Position"],
+                (vec.X, vec.Y, vec.Z)
+            )
+
+        elif className == "attachment":
+            vec = self._as_vector3(value, "Position")
+            self.memory_module.write_floats(
+                self.raw_address + attachment_offsets["Position"],
                 (vec.X, vec.Y, vec.Z)
             )
 
@@ -487,6 +501,42 @@ class RBXInstance:
             self._write_udim2(self.raw_address + gui_offsets["Size"], gui_size)
 
     @property
+    def AbsoluteSize(self):
+        SizeData = self.memory_module.read_floats(
+            self.raw_address + gui_2d_offsets["AbsoluteSize"],
+            2
+        )
+
+        return Vector2(*SizeData)
+    
+    @AbsoluteSize.setter
+    def AbsoluteSize(self, value):
+        self._ensure_writable()
+        vec = self._as_vector2(value, "AbsoluteSize")
+        self.memory_module.write_floats(
+            self.raw_address + gui_2d_offsets["AbsoluteSize"],
+            (vec.X, vec.Y)
+        )
+    
+    @property
+    def AbsolutePosition(self):
+        PositionData = self.memory_module.read_floats(
+            self.raw_address + gui_2d_offsets["AbsolutePosition"],
+            2
+        )
+
+        return Vector2(*PositionData)
+    
+    @AbsolutePosition.setter
+    def AbsolutePosition(self, value):
+        self._ensure_writable()
+        vec = self._as_vector2(value, "AbsolutePosition")
+        self.memory_module.write_floats(
+            self.raw_address + gui_2d_offsets["AbsolutePosition"],
+            (vec.X, vec.Y)
+        )
+
+    @property
     def Transparency(self):
         if "part" not in self.ClassName.lower():
             return None
@@ -512,11 +562,11 @@ class RBXInstance:
         if "part" not in self.ClassName.lower():
             return None
         
-        color_data = self.memory_module.read_floats(
-            self.raw_address + basepart_offsets["Color3"],
-            3
-        )
-        return Color3(*color_data)
+        # Color is stored as 3 bytes (R, G, B) rather than floats
+        color_bytes = self.memory_module.read(self.raw_address + basepart_offsets["Color3"], 3)
+        if len(color_bytes) == 3:
+            return Color3(color_bytes[0] / 255.0, color_bytes[1] / 255.0, color_bytes[2] / 255.0)
+        return Color3(0, 0, 0)
 
     @Color.setter
     def Color(self, value):
@@ -525,9 +575,11 @@ class RBXInstance:
         self._ensure_writable()
 
         vec = self._as_color3(value, "Color3")
-        self.memory_module.write_floats(
-            self.primitive_address + basepart_offsets["Color3"],
-            (vec.X, vec.Y, vec.Z)
+        r, g, b = int(vec.R * 255), int(vec.G * 255), int(vec.B * 255)
+        # Write 3 bytes directly
+        self.memory_module.write(
+            self.raw_address + basepart_offsets["Color3"],
+            bytes([r & 0xFF, g & 0xFF, b & 0xFF])
         )
 
     def _read_primitive_flags(self):
@@ -1150,27 +1202,6 @@ class RBXInstance:
             (vec.X, vec.Y, vec.Z)
         )
 
-    # attachment props #
-    @property
-    def AttachmentPosition(self):
-        if self.ClassName != "Attachment":
-            return None
-        pos_data = self.memory_module.read_floats(
-            self.raw_address + attachment_offsets["Position"],
-            3
-        )
-        return Vector3(*pos_data)
-
-    @AttachmentPosition.setter
-    def AttachmentPosition(self, value):
-        if self.ClassName != "Attachment":
-            raise AttributeError("AttachmentPosition is only available on Attachment instances.")
-        self._ensure_writable()
-        vec = self._as_vector3(value, "AttachmentPosition")
-        self.memory_module.write_floats(
-            self.raw_address + attachment_offsets["Position"],
-            (vec.X, vec.Y, vec.Z)
-        )
 
     # charactermesh props #
     @property
