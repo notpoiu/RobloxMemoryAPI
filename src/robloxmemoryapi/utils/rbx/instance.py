@@ -937,15 +937,15 @@ class RBXInstance:
             self.raw_address + gui_offsets["BackgroundColor3"],
             3
         )
-        return Vector3(*color_data)
+        return Color3(*color_data)
 
     @BackgroundColor3.setter
     def BackgroundColor3(self, value):
         self._ensure_writable()
-        vec = self._as_vector3(value, "BackgroundColor3")
+        vec = self._as_color3(value, "BackgroundColor3")
         self.memory_module.write_floats(
             self.raw_address + gui_offsets["BackgroundColor3"],
-            (vec.X, vec.Y, vec.Z)
+            (vec.R, vec.G, vec.B)
         )
 
     @property
@@ -954,15 +954,15 @@ class RBXInstance:
             self.raw_address + gui_offsets["BorderColor3"],
             3
         )
-        return Vector3(*color_data)
+        return Color3(*color_data)
 
     @BorderColor3.setter
     def BorderColor3(self, value):
         self._ensure_writable()
-        vec = self._as_vector3(value, "BorderColor3")
+        vec = self._as_color3(value, "BorderColor3")
         self.memory_module.write_floats(
             self.raw_address + gui_offsets["BorderColor3"],
-            (vec.X, vec.Y, vec.Z)
+            (vec.R, vec.G, vec.B)
         )
 
     @property
@@ -971,15 +971,15 @@ class RBXInstance:
             self.raw_address + gui_offsets["TextColor3"],
             3
         )
-        return Vector3(*color_data)
+        return Color3(*color_data)
 
     @TextColor3.setter
     def TextColor3(self, value):
         self._ensure_writable()
-        vec = self._as_vector3(value, "TextColor3")
+        vec = self._as_color3(value, "TextColor3")
         self.memory_module.write_floats(
             self.raw_address + gui_offsets["TextColor3"],
-            (vec.X, vec.Y, vec.Z)
+            (vec.R, vec.G, vec.B)
         )
 
     @property
@@ -1008,8 +1008,7 @@ class RBXInstance:
     @property
     def BackgroundTransparency(self):
         return self.memory_module.read_float(
-            self.raw_address,
-            gui_offsets["BackgroundTransparency"]
+            self.raw_address + gui_offsets["BackgroundTransparency"]
         )
 
     @BackgroundTransparency.setter
@@ -1023,8 +1022,7 @@ class RBXInstance:
     @property
     def ZIndex(self):
         return self.memory_module.read_int(
-            self.raw_address,
-            gui_offsets["ZIndex"]
+            self.raw_address + gui_offsets["ZIndex"]
         )
 
     @ZIndex.setter
@@ -1070,8 +1068,7 @@ class RBXInstance:
         if self.ClassName != "Tool":
             return None
         return self.memory_module.read_bool(
-            self.raw_address,
-            tool_offsets["ManualActivationOnly"]
+            self.raw_address + tool_offsets["ManualActivationOnly"]
         )
 
     @ManualActivationOnly.setter
@@ -1208,9 +1205,10 @@ class RBXInstance:
     def BaseTextureId(self):
         if self.ClassName != "CharacterMesh":
             return None
-        return self.memory_module.read_long(
-            self.raw_address,
-            charactermesh_offsets["BaseTextureId"]
+        offset = charactermesh_offsets.get("BaseTextureId", 0)
+        if offset == 0: return None
+        return self.memory_module.read_string(
+            self.raw_address + offset
         )
 
     @BaseTextureId.setter
@@ -1218,18 +1216,21 @@ class RBXInstance:
         if self.ClassName != "CharacterMesh":
             raise AttributeError("BaseTextureId is only available on CharacterMesh instances.")
         self._ensure_writable()
-        self.memory_module.write_long(
-            self.raw_address + charactermesh_offsets["BaseTextureId"],
-            int(value)
+        offset = charactermesh_offsets.get("BaseTextureId", 0)
+        if offset == 0: return
+        self.memory_module.write_string(
+            self.raw_address + offset,
+            str(value)
         )
 
     @property
     def OverlayTextureId(self):
         if self.ClassName != "CharacterMesh":
             return None
-        return self.memory_module.read_long(
-            self.raw_address,
-            charactermesh_offsets["OverlayTextureId"]
+        offset = charactermesh_offsets.get("OverlayTextureId", 0)
+        if offset == 0: return None
+        return self.memory_module.read_string(
+            self.raw_address + offset
         )
 
     @OverlayTextureId.setter
@@ -1237,9 +1238,11 @@ class RBXInstance:
         if self.ClassName != "CharacterMesh":
             raise AttributeError("OverlayTextureId is only available on CharacterMesh instances.")
         self._ensure_writable()
-        self.memory_module.write_long(
-            self.raw_address + charactermesh_offsets["OverlayTextureId"],
-            int(value)
+        offset = charactermesh_offsets.get("OverlayTextureId", 0)
+        if offset == 0: return
+        self.memory_module.write_string(
+            self.raw_address + offset,
+            str(value)
         )
 
     @property
@@ -1255,9 +1258,10 @@ class RBXInstance:
     def CharacterMeshId(self):
         if self.ClassName != "CharacterMesh":
             return None
-        return self.memory_module.read_long(
-            self.raw_address,
-            charactermesh_offsets["MeshId"]
+        offset = charactermesh_offsets.get("MeshId", 0)
+        if offset == 0: return None
+        return self.memory_module.read_string(
+            self.raw_address + offset
         )
 
     # clothing props (Shirt/Pants) #
