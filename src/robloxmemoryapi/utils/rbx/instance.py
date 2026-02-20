@@ -27,6 +27,8 @@ spawnlocation_offsets = Offsets["SpawnLocation"]
 clothing_offsets = Offsets["Clothing"]
 charactermesh_offsets = Offsets["CharacterMesh"]
 attachment_offsets = Offsets["Attachment"]
+air_properties_offsets = Offsets["AirProperties"]
+seat_offsets = Offsets["Seat"]
 
 ROTATION_MATRIX_FLOATS = 9
 
@@ -404,6 +406,16 @@ class RBXInstance:
                 self.raw_address,
                 Offsets["ColorCorrectionEffect"]["Enabled"]
             )
+        elif self.ClassName == "BlurEffect":
+            return self.memory_module.read_bool(
+                self.raw_address,
+                Offsets["BlurEffect"]["Enabled"]
+            )
+        elif self.ClassName == "ColorGradingEffect":
+            return self.memory_module.read_bool(
+                self.raw_address,
+                Offsets["ColorGradingEffect"]["Enabled"]
+            )
         elif self.ClassName == "SpawnLocation":
             return self.memory_module.read_bool(
                 self.raw_address,
@@ -437,6 +449,18 @@ class RBXInstance:
                 self.raw_address + Offsets["ColorCorrectionEffect"]["Enabled"],
                 bool(value)
             )
+        elif self.ClassName == "BlurEffect":
+            self._ensure_writable()
+            self.memory_module.write_bool(
+                self.raw_address + Offsets["BlurEffect"]["Enabled"],
+                bool(value)
+            )
+        elif self.ClassName == "ColorGradingEffect":
+            self._ensure_writable()
+            self.memory_module.write_bool(
+                self.raw_address + Offsets["ColorGradingEffect"]["Enabled"],
+                bool(value)
+            )
         elif self.ClassName == "SpawnLocation":
             self._ensure_writable()
             self.memory_module.write_bool(
@@ -444,7 +468,7 @@ class RBXInstance:
                 bool(value)
             )
         else:
-            raise AttributeError("Enabled is only available on ScreenGui, ProximityPrompt, Tool, ColorCorrectionEffect, or SpawnLocation instances.")
+            raise AttributeError("Enabled is only available on ScreenGui, ProximityPrompt, Tool, ColorCorrectionEffect, BlurEffect, ColorGradingEffect, or SpawnLocation instances.")
     
     @property
     def Visible(self):
@@ -534,6 +558,12 @@ class RBXInstance:
         self.memory_module.write_floats(
             self.raw_address + gui_2d_offsets["AbsolutePosition"],
             (vec.X, vec.Y)
+        )
+
+    @property
+    def AbsoluteRotation(self):
+        return self.memory_module.read_float(
+            self.raw_address + gui_2d_offsets["AbsoluteRotation"]
         )
 
     @property
@@ -1199,6 +1229,56 @@ class RBXInstance:
             (vec.X, vec.Y, vec.Z)
         )
 
+    # blureffect props #
+    @property
+    def BlurSize(self):
+        if self.ClassName != "BlurEffect":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + Offsets["BlurEffect"]["Size"]
+        )
+
+    @BlurSize.setter
+    def BlurSize(self, value: float):
+        if self.ClassName != "BlurEffect":
+            raise AttributeError("BlurSize is only available on BlurEffect instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + Offsets["BlurEffect"]["Size"],
+            float(value)
+        )
+
+    # colorgradingeffect props #
+    @property
+    def TonemapperPreset(self):
+        if self.ClassName != "ColorGradingEffect":
+            return None
+        return self.memory_module.read_int(
+            self.raw_address + Offsets["ColorGradingEffect"]["TonemapperPreset"]
+        )
+
+    @TonemapperPreset.setter
+    def TonemapperPreset(self, value: int):
+        if self.ClassName != "ColorGradingEffect":
+            raise AttributeError("TonemapperPreset is only available on ColorGradingEffect instances.")
+        self._ensure_writable()
+        self.memory_module.write_int(
+            self.raw_address + Offsets["ColorGradingEffect"]["TonemapperPreset"],
+            int(value)
+        )
+
+    # seat props #
+    @property
+    def Occupant(self):
+        if self.ClassName != "Seat":
+            return None
+        ptr = self.memory_module.get_pointer(
+            self.raw_address,
+            seat_offsets["Occupant"]
+        )
+        if ptr == 0:
+            return None
+        return RBXInstance(ptr, self.memory_module)
 
     # charactermesh props #
     @property
@@ -1737,6 +1817,272 @@ class RBXInstance:
         self.memory_module.write_bool(
             self.raw_address + humanoid_offsets["AutoRotate"],
             bool(value)
+        )
+
+    @property
+    def AutoJumpEnabled(self):
+        if self.ClassName != "Humanoid":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            humanoid_offsets["AutoJumpEnabled"]
+        )
+
+    @AutoJumpEnabled.setter
+    def AutoJumpEnabled(self, value: bool):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("AutoJumpEnabled is only available on Humanoid instances.")
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + humanoid_offsets["AutoJumpEnabled"],
+            bool(value)
+        )
+
+    @property
+    def BreakJointsOnDeath(self):
+        if self.ClassName != "Humanoid":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            humanoid_offsets["BreakJointsOnDeath"]
+        )
+
+    @BreakJointsOnDeath.setter
+    def BreakJointsOnDeath(self, value: bool):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("BreakJointsOnDeath is only available on Humanoid instances.")
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + humanoid_offsets["BreakJointsOnDeath"],
+            bool(value)
+        )
+
+    @property
+    def CameraOffset(self):
+        if self.ClassName != "Humanoid":
+            return None
+        data = self.memory_module.read_floats(
+            self.raw_address + humanoid_offsets["CameraOffset"],
+            3
+        )
+        return Vector3(*data)
+
+    @CameraOffset.setter
+    def CameraOffset(self, value):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("CameraOffset is only available on Humanoid instances.")
+        self._ensure_writable()
+        vec = self._as_vector3(value, "CameraOffset")
+        self.memory_module.write_floats(
+            self.raw_address + humanoid_offsets["CameraOffset"],
+            (vec.X, vec.Y, vec.Z)
+        )
+
+    @property
+    def DisplayName(self):
+        """Humanoid display name label. Use PlayerClass.DisplayName for the player display name."""
+        if self.ClassName != "Humanoid":
+            return None
+        return self.memory_module.read_string(
+            self.raw_address,
+            humanoid_offsets["DisplayName"]
+        )
+
+    @property
+    def EvaluateStateMachine(self):
+        if self.ClassName != "Humanoid":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            humanoid_offsets["EvaluateStateMachine"]
+        )
+
+    @EvaluateStateMachine.setter
+    def EvaluateStateMachine(self, value: bool):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("EvaluateStateMachine is only available on Humanoid instances.")
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + humanoid_offsets["EvaluateStateMachine"],
+            bool(value)
+        )
+
+    @property
+    def HealthDisplayDistance(self):
+        if self.ClassName != "Humanoid":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address,
+            humanoid_offsets["HealthDisplayDistance"]
+        )
+
+    @HealthDisplayDistance.setter
+    def HealthDisplayDistance(self, value: float):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("HealthDisplayDistance is only available on Humanoid instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + humanoid_offsets["HealthDisplayDistance"],
+            float(value)
+        )
+
+    @property
+    def HealthDisplayType(self):
+        if self.ClassName != "Humanoid":
+            return None
+        return self.memory_module.read_int(
+            self.raw_address,
+            humanoid_offsets["HealthDisplayType"]
+        )
+
+    @HealthDisplayType.setter
+    def HealthDisplayType(self, value: int):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("HealthDisplayType is only available on Humanoid instances.")
+        self._ensure_writable()
+        self.memory_module.write_int(
+            self.raw_address + humanoid_offsets["HealthDisplayType"],
+            int(value)
+        )
+
+    @property
+    def HumanoidRootPart(self):
+        if self.ClassName != "Humanoid":
+            return None
+        ptr = self.memory_module.get_pointer(
+            self.raw_address,
+            humanoid_offsets["HumanoidRootPart"]
+        )
+        if ptr == 0:
+            return None
+        return RBXInstance(ptr, self.memory_module)
+
+    @property
+    def NameDisplayDistance(self):
+        if self.ClassName != "Humanoid":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address,
+            humanoid_offsets["NameDisplayDistance"]
+        )
+
+    @NameDisplayDistance.setter
+    def NameDisplayDistance(self, value: float):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("NameDisplayDistance is only available on Humanoid instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + humanoid_offsets["NameDisplayDistance"],
+            float(value)
+        )
+
+    @property
+    def NameOcclusion(self):
+        if self.ClassName != "Humanoid":
+            return None
+        return self.memory_module.read_int(
+            self.raw_address,
+            humanoid_offsets["NameOcclusion"]
+        )
+
+    @NameOcclusion.setter
+    def NameOcclusion(self, value: int):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("NameOcclusion is only available on Humanoid instances.")
+        self._ensure_writable()
+        self.memory_module.write_int(
+            self.raw_address + humanoid_offsets["NameOcclusion"],
+            int(value)
+        )
+
+    @property
+    def PlatformStand(self):
+        if self.ClassName != "Humanoid":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            humanoid_offsets["PlatformStand"]
+        )
+
+    @PlatformStand.setter
+    def PlatformStand(self, value: bool):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("PlatformStand is only available on Humanoid instances.")
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + humanoid_offsets["PlatformStand"],
+            bool(value)
+        )
+
+    @property
+    def RequiresNeck(self):
+        if self.ClassName != "Humanoid":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            humanoid_offsets["RequiresNeck"]
+        )
+
+    @RequiresNeck.setter
+    def RequiresNeck(self, value: bool):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("RequiresNeck is only available on Humanoid instances.")
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + humanoid_offsets["RequiresNeck"],
+            bool(value)
+        )
+
+    @property
+    def SeatPart(self):
+        if self.ClassName != "Humanoid":
+            return None
+        ptr = self.memory_module.get_pointer(
+            self.raw_address,
+            humanoid_offsets["SeatPart"]
+        )
+        if ptr == 0:
+            return None
+        return RBXInstance(ptr, self.memory_module)
+
+    @property
+    def Sit(self):
+        if self.ClassName != "Humanoid":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            humanoid_offsets["Sit"]
+        )
+
+    @Sit.setter
+    def Sit(self, value: bool):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("Sit is only available on Humanoid instances.")
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + humanoid_offsets["Sit"],
+            bool(value)
+        )
+
+    @property
+    def TargetPoint(self):
+        if self.ClassName != "Humanoid":
+            return None
+        data = self.memory_module.read_floats(
+            self.raw_address + humanoid_offsets["TargetPoint"],
+            3
+        )
+        return Vector3(*data)
+
+    @TargetPoint.setter
+    def TargetPoint(self, value):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("TargetPoint is only available on Humanoid instances.")
+        self._ensure_writable()
+        vec = self._as_vector3(value, "TargetPoint")
+        self.memory_module.write_floats(
+            self.raw_address + humanoid_offsets["TargetPoint"],
+            (vec.X, vec.Y, vec.Z)
         )
 
     @property
@@ -2963,6 +3309,93 @@ class WorkspaceService(ServiceBase):
             float(value)
         )
 
+    @property
+    def FallenPartsDestroyHeight(self):
+        if self.failed:
+            return 0.0
+
+        World = self.memory_module.get_pointer(
+            self.instance.raw_address,
+            self.offset_base["World"]
+        )
+
+        return self.memory_module.read_float(
+            World,
+            world_offsets["FallenPartsDestroyHeight"]
+        )
+
+    @FallenPartsDestroyHeight.setter
+    def FallenPartsDestroyHeight(self, value: float):
+        self._ensure_writable()
+
+        World = self.memory_module.get_pointer(
+            self.instance.raw_address,
+            self.offset_base["World"]
+        )
+
+        self.memory_module.write_float(
+            World + world_offsets["FallenPartsDestroyHeight"],
+            float(value)
+        )
+
+    def _get_air_properties(self):
+        """Returns the AirProperties pointer from World."""
+        World = self.memory_module.get_pointer(
+            self.instance.raw_address,
+            self.offset_base["World"]
+        )
+        return self.memory_module.get_pointer(
+            World,
+            world_offsets["AirProperties"]
+        )
+
+    @property
+    def AirDensity(self):
+        if self.failed:
+            return 0.0
+
+        air = self._get_air_properties()
+        return self.memory_module.read_float(
+            air,
+            air_properties_offsets["AirDensity"]
+        )
+
+    @AirDensity.setter
+    def AirDensity(self, value: float):
+        self._ensure_writable()
+        air = self._get_air_properties()
+        self.memory_module.write_float(
+            air + air_properties_offsets["AirDensity"],
+            float(value)
+        )
+
+    @property
+    def GlobalWind(self):
+        if self.failed:
+            return None
+
+        air = self._get_air_properties()
+        data = self.memory_module.read_floats(
+            air + air_properties_offsets["GlobalWind"],
+            3
+        )
+        return Vector3(*data)
+
+    @GlobalWind.setter
+    def GlobalWind(self, value):
+        self._ensure_writable()
+        if isinstance(value, Vector3):
+            v = value
+        elif isinstance(value, (tuple, list)) and len(value) == 3:
+            v = Vector3(*value)
+        else:
+            raise TypeError("GlobalWind must be a Vector3 or iterable of 3 numbers.")
+        air = self._get_air_properties()
+        self.memory_module.write_floats(
+            air + air_properties_offsets["GlobalWind"],
+            (v.X, v.Y, v.Z)
+        )
+
 class LightingService(ServiceBase):
     def __init__(self, memory_module, game: DataModel):
         super().__init__()
@@ -3232,6 +3665,23 @@ class LightingService(ServiceBase):
         self.memory_module.write_float(
             self.instance.raw_address + self.offset_base["EnvironmentSpecularScale"],
             float(value)
+        )
+
+    @property
+    def GlobalShadows(self):
+        if self.failed: return None
+        return self.memory_module.read_bool(
+            self.instance.raw_address,
+            self.offset_base["GlobalShadows"]
+        )
+
+    @GlobalShadows.setter
+    def GlobalShadows(self, value: bool):
+        if self.failed: return
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.instance.raw_address + self.offset_base["GlobalShadows"],
+            bool(value)
         )
 
 class InputObject(RBXInstance):

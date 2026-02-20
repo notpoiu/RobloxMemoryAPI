@@ -5,23 +5,10 @@ BASE_URL = "https://imtheo.lol/Offsets"
 # Offsets
 OffsetsRequest = requests.get(f"{BASE_URL}/Offsets.json")
 
-# Legacy Offsets
-OldOffsetsRequest = requests.get("https://offsets.ntgetwritewatch.workers.dev/offsets.json")
-try:
-    OldOffsets = OldOffsetsRequest.json()
-except:
-    OldOffsets = {}
-
 try:
     Offsets = OffsetsRequest.json()["Offsets"]
 except:
     Offsets = {}
-
-# Handle non-existant offsets
-try:
-    Offsets["Camera"]["ViewportSize"] = int(OldOffsets["ViewportSize"], 16)
-except:
-    Offsets["Camera"]["ViewportSize"] = 0x6AD28F
 
 # FFlag offsets (lazily loaded)
 _fflag_data = None
