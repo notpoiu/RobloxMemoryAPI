@@ -29,6 +29,8 @@ charactermesh_offsets = Offsets["CharacterMesh"]
 attachment_offsets = Offsets["Attachment"]
 air_properties_offsets = Offsets["AirProperties"]
 seat_offsets = Offsets["Seat"]
+meshpart_offsets = Offsets["MeshPart"]
+textures_offsets = Offsets["Textures"]
 
 ROTATION_MATRIX_FLOATS = 9
 
@@ -612,6 +614,69 @@ class RBXInstance:
             bytes([r & 0xFF, g & 0xFF, b & 0xFF])
         )
 
+    @property
+    def Reflectance(self):
+        if "part" not in self.ClassName.lower():
+            return None
+        
+        return self.memory_module.read_float(
+            self.raw_address,
+            basepart_offsets["Reflectance"]
+        )
+
+    @Reflectance.setter
+    def Reflectance(self, value: float):
+        if "part" not in self.ClassName.lower():
+            raise AttributeError("Reflectance is only available on BasePart-derived instances.")
+        self._ensure_writable()
+
+        self.memory_module.write_float(
+            self.raw_address + basepart_offsets["Reflectance"],
+            float(value)
+        )
+
+    @property
+    def Locked(self):
+        if "part" not in self.ClassName.lower():
+            return None
+        
+        return self.memory_module.read_bool(
+            self.raw_address,
+            basepart_offsets["Locked"]
+        )
+
+    @Locked.setter
+    def Locked(self, value: bool):
+        if "part" not in self.ClassName.lower():
+            raise AttributeError("Locked is only available on BasePart-derived instances.")
+        self._ensure_writable()
+
+        self.memory_module.write_bool(
+            self.raw_address + basepart_offsets["Locked"],
+            bool(value)
+        )
+
+    @property
+    def Massless(self):
+        if "part" not in self.ClassName.lower():
+            return None
+        
+        return self.memory_module.read_bool(
+            self.raw_address,
+            basepart_offsets["Massless"]
+        )
+
+    @Massless.setter
+    def Massless(self, value: bool):
+        if "part" not in self.ClassName.lower():
+            raise AttributeError("Massless is only available on BasePart-derived instances.")
+        self._ensure_writable()
+
+        self.memory_module.write_bool(
+            self.raw_address + basepart_offsets["Massless"],
+            bool(value)
+        )
+
     def _read_primitive_flags(self):
         data = self.memory_module.read(
             self.primitive_address + primitive_offsets["Flags"], 
@@ -1132,20 +1197,72 @@ class RBXInstance:
 
     @property
     def TextureId(self):
-        if self.ClassName != "Tool":
-            return None
-        return self.memory_module.read_string(
-            self.raw_address,
-            tool_offsets["TextureId"]
-        )
+        className = self.ClassName
+        if className == "Tool":
+            return self.memory_module.read_string(
+                self.raw_address,
+                tool_offsets["TextureId"]
+            )
+        elif className == "MeshPart":
+            return self.memory_module.read_string(
+                self.raw_address,
+                meshpart_offsets["Texture"]
+            )
+        elif className == "Decal":
+            return self.memory_module.read_string(
+                self.raw_address,
+                textures_offsets["Decal_Texture"]
+            )
+        elif className == "Texture":
+            return self.memory_module.read_string(
+                self.raw_address,
+                textures_offsets["Texture_Texture"]
+            )
+        return None
 
     @TextureId.setter
     def TextureId(self, value: str):
-        if self.ClassName != "Tool":
-            raise AttributeError("TextureId is only available on Tool instances.")
+        className = self.ClassName
+        self._ensure_writable()
+        if className == "Tool":
+            self.memory_module.write_string(
+                self.raw_address + tool_offsets["TextureId"],
+                str(value)
+            )
+        elif className == "MeshPart":
+            self.memory_module.write_string(
+                self.raw_address + meshpart_offsets["Texture"],
+                str(value)
+            )
+        elif className == "Decal":
+            self.memory_module.write_string(
+                self.raw_address + textures_offsets["Decal_Texture"],
+                str(value)
+            )
+        elif className == "Texture":
+            self.memory_module.write_string(
+                self.raw_address + textures_offsets["Texture_Texture"],
+                str(value)
+            )
+        else:
+            raise AttributeError("TextureId is only available on Tool, MeshPart, Decal, or Texture instances.")
+
+    @property
+    def MeshId(self):
+        if self.ClassName != "MeshPart":
+            return None
+        return self.memory_module.read_string(
+            self.raw_address,
+            meshpart_offsets["MeshId"]
+        )
+
+    @MeshId.setter
+    def MeshId(self, value: str):
+        if self.ClassName != "MeshPart":
+            raise AttributeError("MeshId is only available on MeshPart instances.")
         self._ensure_writable()
         self.memory_module.write_string(
-            self.raw_address + tool_offsets["TextureId"],
+            self.raw_address + meshpart_offsets["MeshId"],
             str(value)
         )
 
