@@ -47,6 +47,21 @@ class Vector2:
             and self.Y == other.Y
         )
 
+class NumberRange:
+    def __init__(self, min_val=0, max_val=None):
+        self.Min = float(min_val)
+        self.Max = float(max_val if max_val is not None else min_val)
+
+    def __repr__(self):
+        return f"{self.Min}, {self.Max}"
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, NumberRange)
+            and self.Min == other.Min
+            and self.Max == other.Max
+        )
+
 class Color3:
     def __init__(self, r=0, g=0, b=0):
         self.R = float(r)
@@ -390,6 +405,14 @@ class AnimationTrack:
     @property
     def IsPlaying(self):
         return self.memory_module.read_bool(self.raw_address, self._offsets["IsPlaying"])
+
+    @property
+    def TimePosition(self):
+        return self.memory_module.read_float(self.raw_address, self._offsets["TimePosition"])
+
+    @TimePosition.setter
+    def TimePosition(self, value: float):
+        self.memory_module.write_float(self.raw_address + self._offsets["TimePosition"], float(value))
 
 class FFlag:
     __slots__ = ("name", "type", "_value", "offset", "_manager")

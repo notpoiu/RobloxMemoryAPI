@@ -31,6 +31,13 @@ air_properties_offsets = Offsets["AirProperties"]
 seat_offsets = Offsets["Seat"]
 meshpart_offsets = Offsets["MeshPart"]
 textures_offsets = Offsets["Textures"]
+beam_offsets = Offsets["Beam"]
+particleemitter_offsets = Offsets["ParticleEmitter"]
+vehicleseat_offsets = Offsets["VehicleSeat"]
+weld_offsets = Offsets["Weld"]
+weldconstraint_offsets = Offsets["WeldConstraint"]
+surfaceappearance_offsets = Offsets["SurfaceAppearance"]
+script_offsets = Offsets["Script"]
 
 ROTATION_MATRIX_FLOATS = 9
 
@@ -751,6 +758,26 @@ class RBXInstance:
             flags &= ~Offsets["PrimitiveFlags"]["CanTouch"]
         self._write_primitive_flags(flags)
 
+    @property
+    def CanQuery(self):
+        if "part" not in self.ClassName.lower():
+            return None
+        
+        flags = self._read_primitive_flags()
+        return bool(flags & Offsets["PrimitiveFlags"]["CanQuery"])
+
+    @CanQuery.setter
+    def CanQuery(self, value: bool):
+        if "part" not in self.ClassName.lower():
+            raise AttributeError("CanQuery is only available on BasePart-derived instances.")
+        
+        flags = self._read_primitive_flags()
+        if value:
+            flags |= Offsets["PrimitiveFlags"]["CanQuery"]
+        else:
+            flags &= ~Offsets["PrimitiveFlags"]["CanQuery"]
+        self._write_primitive_flags(flags)
+
     # Animator props #
     def GetPlayingAnimationTracks(self):
         if self.ClassName != "Animator":
@@ -1288,23 +1315,33 @@ class RBXInstance:
     # colorcorrection props #
     @property
     def Brightness(self):
-        if self.ClassName == "ColorCorrectionEffect":
+        cn = self.ClassName
+        if cn == "ColorCorrectionEffect":
             return self.memory_module.read_float(
                 self.raw_address,
                 Offsets["ColorCorrectionEffect"]["Brightness"]
             )
+        elif cn == "Beam":
+            return self.memory_module.read_float(self.raw_address, beam_offsets["Brightness"])
+        elif cn == "ParticleEmitter":
+            return self.memory_module.read_float(self.raw_address, particleemitter_offsets["Brightness"])
         return None
 
     @Brightness.setter
     def Brightness(self, value: float):
-        if self.ClassName == "ColorCorrectionEffect":
-            self._ensure_writable()
+        cn = self.ClassName
+        self._ensure_writable()
+        if cn == "ColorCorrectionEffect":
             self.memory_module.write_float(
                 self.raw_address + Offsets["ColorCorrectionEffect"]["Brightness"],
                 float(value)
             )
+        elif cn == "Beam":
+            self.memory_module.write_float(self.raw_address + beam_offsets["Brightness"], float(value))
+        elif cn == "ParticleEmitter":
+            self.memory_module.write_float(self.raw_address + particleemitter_offsets["Brightness"], float(value))
         else:
-            raise AttributeError("Brightness is only available on ColorCorrectionEffect instances (use LightingService.Brightness for Lighting).")
+            raise AttributeError("Brightness is only available on ColorCorrectionEffect, Beam, or ParticleEmitter instances.")
 
     @property
     def Contrast(self):
@@ -2289,6 +2326,62 @@ class RBXInstance:
         else:
             threading.Thread(target=execute_move, daemon=True).start()
 
+    @property
+    def AutomaticScalingEnabled(self):
+        if self.ClassName != "Humanoid":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            humanoid_offsets["AutomaticScalingEnabled"]
+        )
+
+    @AutomaticScalingEnabled.setter
+    def AutomaticScalingEnabled(self, value: bool):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("AutomaticScalingEnabled is only available on Humanoid instances.")
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + humanoid_offsets["AutomaticScalingEnabled"],
+            bool(value)
+        )
+
+    @property
+    def UseJumpPower(self):
+        if self.ClassName != "Humanoid":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            humanoid_offsets["UseJumpPower"]
+        )
+
+    @UseJumpPower.setter
+    def UseJumpPower(self, value: bool):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("UseJumpPower is only available on Humanoid instances.")
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.raw_address + humanoid_offsets["UseJumpPower"],
+            bool(value)
+        )
+
+    @property
+    def WalkTimer(self):
+        if self.ClassName != "Humanoid":
+            return None
+        return self.memory_module.read_double(
+            self.raw_address + humanoid_offsets["WalkTimer"]
+        )
+
+    @WalkTimer.setter
+    def WalkTimer(self, value: float):
+        if self.ClassName != "Humanoid":
+            raise AttributeError("WalkTimer is only available on Humanoid instances.")
+        self._ensure_writable()
+        self.memory_module.write_double(
+            self.raw_address + humanoid_offsets["WalkTimer"],
+            float(value)
+        )
+
     # adornee / animation props #
     @property
     def Adornee(self):
@@ -2384,6 +2477,8 @@ class RBXInstance:
             bytecode_offset = Offsets["LocalScript"]["ByteCode"]
         elif classname == "ModuleScript":
             bytecode_offset = Offsets["ModuleScript"]["ByteCode"]
+        elif classname == "Script":
+            bytecode_offset = script_offsets["ByteCode"]
         else:
             return None
 
@@ -2406,8 +2501,10 @@ class RBXInstance:
             bytecode_offset = Offsets["LocalScript"]["ByteCode"]
         elif classname == "ModuleScript":
             bytecode_offset = Offsets["ModuleScript"]["ByteCode"]
+        elif classname == "Script":
+            bytecode_offset = script_offsets["ByteCode"]
         else:
-            raise AttributeError("Bytecode can only be written for LocalScript or ModuleScript.")
+            raise AttributeError("Bytecode can only be written for LocalScript, ModuleScript, or Script.")
 
         encoded_data = encryptor.encode_roblox(value)
         new_size = len(encoded_data)
@@ -2431,6 +2528,8 @@ class RBXInstance:
             guid_offset = Offsets["LocalScript"]["GUID"]
         elif classname == "ModuleScript":
             guid_offset = Offsets["ModuleScript"]["GUID"]
+        elif classname == "Script":
+            guid_offset = script_offsets["GUID"]
         else:
             return None
         return self.memory_module.read_string(
@@ -2445,6 +2544,8 @@ class RBXInstance:
             hash_offset = Offsets["LocalScript"]["Hash"]
         elif classname == "ModuleScript":
             hash_offset = Offsets["ModuleScript"]["Hash"]
+        elif classname == "Script":
+            hash_offset = script_offsets["Hash"]
         else:
             return None
         return self.memory_module.read_string(
@@ -2598,6 +2699,471 @@ class RBXInstance:
                 return name if name else "Unknown"
         except: pass
         return "Unknown"
+
+    # modulescript props #
+    @property
+    def IsCoreScript(self):
+        if self.ClassName != "ModuleScript":
+            return None
+        return self.memory_module.read_bool(
+            self.raw_address,
+            Offsets["ModuleScript"]["IsCoreScript"]
+        )
+
+    # beam props #
+    @property
+    def Attachment0(self):
+        cn = self.ClassName
+        if cn == "Beam":
+            ptr = self.memory_module.get_pointer(self.raw_address, beam_offsets["Attachment0"])
+            return RBXInstance(ptr, self.memory_module) if ptr != 0 else None
+        return None
+
+    @property
+    def Attachment1(self):
+        cn = self.ClassName
+        if cn == "Beam":
+            ptr = self.memory_module.get_pointer(self.raw_address, beam_offsets["Attachment1"])
+            return RBXInstance(ptr, self.memory_module) if ptr != 0 else None
+        return None
+
+    @property
+    def CurveSize0(self):
+        if self.ClassName != "Beam":
+            return None
+        return self.memory_module.read_float(self.raw_address, beam_offsets["CurveSize0"])
+
+    @CurveSize0.setter
+    def CurveSize0(self, value: float):
+        if self.ClassName != "Beam":
+            raise AttributeError("CurveSize0 is only available on Beam instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + beam_offsets["CurveSize0"], float(value))
+
+    @property
+    def CurveSize1(self):
+        if self.ClassName != "Beam":
+            return None
+        return self.memory_module.read_float(self.raw_address, beam_offsets["CurveSize1"])
+
+    @CurveSize1.setter
+    def CurveSize1(self, value: float):
+        if self.ClassName != "Beam":
+            raise AttributeError("CurveSize1 is only available on Beam instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + beam_offsets["CurveSize1"], float(value))
+
+    @property
+    def LightEmission(self):
+        cn = self.ClassName
+        if cn == "Beam":
+            return self.memory_module.read_float(self.raw_address, beam_offsets["LightEmission"])
+        elif cn == "ParticleEmitter":
+            return self.memory_module.read_float(self.raw_address, particleemitter_offsets["LightEmission"])
+        return None
+
+    @LightEmission.setter
+    def LightEmission(self, value: float):
+        cn = self.ClassName
+        self._ensure_writable()
+        if cn == "Beam":
+            self.memory_module.write_float(self.raw_address + beam_offsets["LightEmission"], float(value))
+        elif cn == "ParticleEmitter":
+            self.memory_module.write_float(self.raw_address + particleemitter_offsets["LightEmission"], float(value))
+        else:
+            raise AttributeError("LightEmission is only available on Beam or ParticleEmitter instances.")
+
+    @property
+    def LightInfluence(self):
+        cn = self.ClassName
+        if cn == "Beam":
+            return self.memory_module.read_float(self.raw_address, beam_offsets["LightInfluence"])
+        elif cn == "ParticleEmitter":
+            return self.memory_module.read_float(self.raw_address, particleemitter_offsets["LightInfluence"])
+        return None
+
+    @LightInfluence.setter
+    def LightInfluence(self, value: float):
+        cn = self.ClassName
+        self._ensure_writable()
+        if cn == "Beam":
+            self.memory_module.write_float(self.raw_address + beam_offsets["LightInfluence"], float(value))
+        elif cn == "ParticleEmitter":
+            self.memory_module.write_float(self.raw_address + particleemitter_offsets["LightInfluence"], float(value))
+        else:
+            raise AttributeError("LightInfluence is only available on Beam or ParticleEmitter instances.")
+
+    @property
+    def TextureLength(self):
+        if self.ClassName != "Beam":
+            return None
+        return self.memory_module.read_float(self.raw_address, beam_offsets["TextureLength"])
+
+    @TextureLength.setter
+    def TextureLength(self, value: float):
+        if self.ClassName != "Beam":
+            raise AttributeError("TextureLength is only available on Beam instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + beam_offsets["TextureLength"], float(value))
+
+    @property
+    def TextureSpeed(self):
+        if self.ClassName != "Beam":
+            return None
+        return self.memory_module.read_float(self.raw_address, beam_offsets["TextureSpeed"])
+
+    @TextureSpeed.setter
+    def TextureSpeed(self, value: float):
+        if self.ClassName != "Beam":
+            raise AttributeError("TextureSpeed is only available on Beam instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + beam_offsets["TextureSpeed"], float(value))
+
+    @property
+    def Width0(self):
+        if self.ClassName != "Beam":
+            return None
+        return self.memory_module.read_float(self.raw_address, beam_offsets["Width0"])
+
+    @Width0.setter
+    def Width0(self, value: float):
+        if self.ClassName != "Beam":
+            raise AttributeError("Width0 is only available on Beam instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + beam_offsets["Width0"], float(value))
+
+    @property
+    def Width1(self):
+        if self.ClassName != "Beam":
+            return None
+        return self.memory_module.read_float(self.raw_address, beam_offsets["Width1"])
+
+    @Width1.setter
+    def Width1(self, value: float):
+        if self.ClassName != "Beam":
+            raise AttributeError("Width1 is only available on Beam instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + beam_offsets["Width1"], float(value))
+
+    @property
+    def ZOffset(self):
+        cn = self.ClassName
+        if cn == "Beam":
+            return self.memory_module.read_float(self.raw_address, beam_offsets["ZOffset"])
+        elif cn == "ParticleEmitter":
+            return self.memory_module.read_float(self.raw_address, particleemitter_offsets["ZOffset"])
+        return None
+
+    @ZOffset.setter
+    def ZOffset(self, value: float):
+        cn = self.ClassName
+        self._ensure_writable()
+        if cn == "Beam":
+            self.memory_module.write_float(self.raw_address + beam_offsets["ZOffset"], float(value))
+        elif cn == "ParticleEmitter":
+            self.memory_module.write_float(self.raw_address + particleemitter_offsets["ZOffset"], float(value))
+        else:
+            raise AttributeError("ZOffset is only available on Beam or ParticleEmitter instances.")
+
+    # particleemitter props #
+    @property
+    def Acceleration(self):
+        if self.ClassName != "ParticleEmitter":
+            return None
+        data = self.memory_module.read_floats(
+            self.raw_address + particleemitter_offsets["Acceleration"], 3
+        )
+        return Vector3(*data)
+
+    @Acceleration.setter
+    def Acceleration(self, value):
+        if self.ClassName != "ParticleEmitter":
+            raise AttributeError("Acceleration is only available on ParticleEmitter instances.")
+        self._ensure_writable()
+        vec = self._as_vector3(value, "Acceleration")
+        self.memory_module.write_floats(
+            self.raw_address + particleemitter_offsets["Acceleration"],
+            (vec.X, vec.Y, vec.Z)
+        )
+
+    @property
+    def Drag(self):
+        if self.ClassName != "ParticleEmitter":
+            return None
+        return self.memory_module.read_float(self.raw_address, particleemitter_offsets["Drag"])
+
+    @Drag.setter
+    def Drag(self, value: float):
+        if self.ClassName != "ParticleEmitter":
+            raise AttributeError("Drag is only available on ParticleEmitter instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + particleemitter_offsets["Drag"], float(value))
+
+    @property
+    def Lifetime(self):
+        if self.ClassName != "ParticleEmitter":
+            return None
+        data = self.memory_module.read_floats(
+            self.raw_address + particleemitter_offsets["Lifetime"], 2
+        )
+        return NumberRange(*data)
+
+    @property
+    def Rate(self):
+        if self.ClassName != "ParticleEmitter":
+            return None
+        return self.memory_module.read_float(self.raw_address, particleemitter_offsets["Rate"])
+
+    @Rate.setter
+    def Rate(self, value: float):
+        if self.ClassName != "ParticleEmitter":
+            raise AttributeError("Rate is only available on ParticleEmitter instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + particleemitter_offsets["Rate"], float(value))
+
+    @property
+    def RotSpeed(self):
+        if self.ClassName != "ParticleEmitter":
+            return None
+        data = self.memory_module.read_floats(
+            self.raw_address + particleemitter_offsets["RotSpeed"], 2
+        )
+        return NumberRange(*data)
+
+    @RotSpeed.setter
+    def RotSpeed(self, value):
+        if self.ClassName != "ParticleEmitter":
+            raise AttributeError("RotSpeed is only available on ParticleEmitter instances.")
+        self._ensure_writable()
+        if isinstance(value, NumberRange):
+            vals = (value.Min, value.Max)
+        elif isinstance(value, (tuple, list)) and len(value) == 2:
+            vals = (float(value[0]), float(value[1]))
+        else:
+            v = float(value)
+            vals = (v, v)
+        self.memory_module.write_floats(
+            self.raw_address + particleemitter_offsets["RotSpeed"], vals
+        )
+
+    @property
+    def ParticleSpeed(self):
+        """Speed property for ParticleEmitter (named ParticleSpeed to avoid conflict with AnimationTrack.Speed)."""
+        if self.ClassName != "ParticleEmitter":
+            return None
+        data = self.memory_module.read_floats(
+            self.raw_address + particleemitter_offsets["Speed"], 2
+        )
+        return NumberRange(*data)
+
+    @ParticleSpeed.setter
+    def ParticleSpeed(self, value):
+        if self.ClassName != "ParticleEmitter":
+            raise AttributeError("ParticleSpeed is only available on ParticleEmitter instances.")
+        self._ensure_writable()
+        if isinstance(value, NumberRange):
+            vals = (value.Min, value.Max)
+        elif isinstance(value, (tuple, list)) and len(value) == 2:
+            vals = (float(value[0]), float(value[1]))
+        else:
+            v = float(value)
+            vals = (v, v)
+        self.memory_module.write_floats(
+            self.raw_address + particleemitter_offsets["Speed"], vals
+        )
+
+    @property
+    def SpreadAngle(self):
+        if self.ClassName != "ParticleEmitter":
+            return None
+        data = self.memory_module.read_floats(
+            self.raw_address + particleemitter_offsets["SpreadAngle"], 2
+        )
+        return Vector2(*data)
+
+    @property
+    def TimeScale(self):
+        if self.ClassName != "ParticleEmitter":
+            return None
+        return self.memory_module.read_float(self.raw_address, particleemitter_offsets["TimeScale"])
+
+    @TimeScale.setter
+    def TimeScale(self, value: float):
+        if self.ClassName != "ParticleEmitter":
+            raise AttributeError("TimeScale is only available on ParticleEmitter instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + particleemitter_offsets["TimeScale"], float(value))
+
+    @property
+    def VelocityInheritance(self):
+        if self.ClassName != "ParticleEmitter":
+            return None
+        return self.memory_module.read_float(self.raw_address, particleemitter_offsets["VelocityInheritance"])
+
+    @VelocityInheritance.setter
+    def VelocityInheritance(self, value: float):
+        if self.ClassName != "ParticleEmitter":
+            raise AttributeError("VelocityInheritance is only available on ParticleEmitter instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + particleemitter_offsets["VelocityInheritance"], float(value))
+
+    # vehicleseat props #
+    @property
+    def MaxSpeed(self):
+        if self.ClassName != "VehicleSeat":
+            return None
+        return self.memory_module.read_float(self.raw_address, vehicleseat_offsets["MaxSpeed"])
+
+    @MaxSpeed.setter
+    def MaxSpeed(self, value: float):
+        if self.ClassName != "VehicleSeat":
+            raise AttributeError("MaxSpeed is only available on VehicleSeat instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + vehicleseat_offsets["MaxSpeed"], float(value))
+
+    @property
+    def SteerFloat(self):
+        if self.ClassName != "VehicleSeat":
+            return None
+        return self.memory_module.read_float(self.raw_address, vehicleseat_offsets["SteerFloat"])
+
+    @SteerFloat.setter
+    def SteerFloat(self, value: float):
+        if self.ClassName != "VehicleSeat":
+            raise AttributeError("SteerFloat is only available on VehicleSeat instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + vehicleseat_offsets["SteerFloat"], float(value))
+
+    @property
+    def ThrottleFloat(self):
+        if self.ClassName != "VehicleSeat":
+            return None
+        return self.memory_module.read_float(self.raw_address, vehicleseat_offsets["ThrottleFloat"])
+
+    @ThrottleFloat.setter
+    def ThrottleFloat(self, value: float):
+        if self.ClassName != "VehicleSeat":
+            raise AttributeError("ThrottleFloat is only available on VehicleSeat instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + vehicleseat_offsets["ThrottleFloat"], float(value))
+
+    @property
+    def Torque(self):
+        if self.ClassName != "VehicleSeat":
+            return None
+        return self.memory_module.read_float(self.raw_address, vehicleseat_offsets["Torque"])
+
+    @Torque.setter
+    def Torque(self, value: float):
+        if self.ClassName != "VehicleSeat":
+            raise AttributeError("Torque is only available on VehicleSeat instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + vehicleseat_offsets["Torque"], float(value))
+
+    @property
+    def TurnSpeed(self):
+        if self.ClassName != "VehicleSeat":
+            return None
+        return self.memory_module.read_float(self.raw_address, vehicleseat_offsets["TurnSpeed"])
+
+    @TurnSpeed.setter
+    def TurnSpeed(self, value: float):
+        if self.ClassName != "VehicleSeat":
+            raise AttributeError("TurnSpeed is only available on VehicleSeat instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(self.raw_address + vehicleseat_offsets["TurnSpeed"], float(value))
+
+    # weld / weldconstraint props #
+    @property
+    def Part0(self):
+        cn = self.ClassName
+        if cn == "Weld":
+            ptr = self.memory_module.get_pointer(self.raw_address, weld_offsets["Part0"])
+        elif cn == "WeldConstraint":
+            ptr = self.memory_module.get_pointer(self.raw_address, weldconstraint_offsets["Part0"])
+        else:
+            return None
+        return RBXInstance(ptr, self.memory_module) if ptr != 0 else None
+
+    @Part0.setter
+    def Part0(self, value):
+        cn = self.ClassName
+        if cn != "Weld" and cn != "WeldConstraint":
+            raise AttributeError("Part0 is only available on Weld or WeldConstraint instances.")
+        self._ensure_writable()
+        if value is None:
+            target = 0
+        elif isinstance(value, RBXInstance):
+            target = value.raw_address
+        elif isinstance(value, int):
+            target = value
+        else:
+            raise TypeError("Part0 must be set to an RBXInstance, int address, or None.")
+        offset = weld_offsets["Part0"] if cn == "Weld" else weldconstraint_offsets["Part0"]
+        self.memory_module.write_long(self.raw_address + offset, target)
+
+    @property
+    def Part1(self):
+        cn = self.ClassName
+        if cn == "Weld":
+            ptr = self.memory_module.get_pointer(self.raw_address, weld_offsets["Part1"])
+        elif cn == "WeldConstraint":
+            ptr = self.memory_module.get_pointer(self.raw_address, weldconstraint_offsets["Part1"])
+        else:
+            return None
+        return RBXInstance(ptr, self.memory_module) if ptr != 0 else None
+
+    @Part1.setter
+    def Part1(self, value):
+        cn = self.ClassName
+        if cn != "Weld" and cn != "WeldConstraint":
+            raise AttributeError("Part1 is only available on Weld or WeldConstraint instances.")
+        self._ensure_writable()
+        if value is None:
+            target = 0
+        elif isinstance(value, RBXInstance):
+            target = value.raw_address
+        elif isinstance(value, int):
+            target = value
+        else:
+            raise TypeError("Part1 must be set to an RBXInstance, int address, or None.")
+        offset = weld_offsets["Part1"] if cn == "Weld" else weldconstraint_offsets["Part1"]
+        self.memory_module.write_long(self.raw_address + offset, target)
+
+    # surfaceappearance props #
+    @property
+    def AlphaMode(self):
+        if self.ClassName != "SurfaceAppearance":
+            return None
+        return self.memory_module.read_int(
+            self.raw_address, surfaceappearance_offsets["AlphaMode"]
+        )
+
+    @AlphaMode.setter
+    def AlphaMode(self, value: int):
+        if self.ClassName != "SurfaceAppearance":
+            raise AttributeError("AlphaMode is only available on SurfaceAppearance instances.")
+        self._ensure_writable()
+        self.memory_module.write_int(
+            self.raw_address + surfaceappearance_offsets["AlphaMode"], int(value)
+        )
+
+    @property
+    def EmissiveStrength(self):
+        if self.ClassName != "SurfaceAppearance":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address, surfaceappearance_offsets["EmissiveStrength"]
+        )
+
+    @EmissiveStrength.setter
+    def EmissiveStrength(self, value: float):
+        if self.ClassName != "SurfaceAppearance":
+            raise AttributeError("EmissiveStrength is only available on SurfaceAppearance instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + surfaceappearance_offsets["EmissiveStrength"], float(value)
+        )
 
 class AttributeValue:
     def __init__(self, address, name, type_name, memory_module):
@@ -2772,10 +3338,37 @@ class PlayerClass(RBXInstance):
         return RBXInstance(TeamAddress, self.memory_module)
 
     @property
-    def Country(self):
+    def LocaleId(self):
         return self.memory_module.read_string(
             self.raw_address,
-            self.offset_base["Country"]
+            self.offset_base["LocaleId"]
+        )
+
+    @property
+    def Country(self):
+        """Deprecated: Use LocaleId instead. Renamed in V2.1.4."""
+        return self.LocaleId
+
+    @property
+    def TeamColor(self):
+        return self.memory_module.read_int(
+            self.raw_address,
+            self.offset_base["TeamColor"]
+        )
+
+    @TeamColor.setter
+    def TeamColor(self, value: int):
+        self._ensure_writable()
+        self.memory_module.write_int(
+            self.raw_address + self.offset_base["TeamColor"],
+            int(value)
+        )
+
+    @property
+    def AccountAge(self):
+        return self.memory_module.read_int(
+            self.raw_address,
+            self.offset_base["AccountAge"]
         )
 
     @property
@@ -3870,3 +4463,69 @@ class MouseService(ServiceBase):
         if input_obj is None:
             return
         input_obj.MousePosition = value
+
+    @property
+    def InputObject2(self):
+        if self.failed:
+            return None
+        try:
+            input_ptr = self.memory_module.get_pointer(
+                self.instance.raw_address,
+                self.offset_base["InputObject2"]
+            )
+            if input_ptr == 0:
+                return None
+            return InputObject(input_ptr, self.memory_module)
+        except (KeyError, OSError):
+            return None
+
+class UserInputService(ServiceBase):
+    def __init__(self, memory_module, game: DataModel):
+        super().__init__()
+        self.memory_module = memory_module
+        self.offset_base = Offsets["UserInputService"]
+        try:
+            uis_instance: RBXInstance = game.GetRawService("UserInputService")
+            if uis_instance is None or uis_instance.ClassName != "UserInputService":
+                self.failed = True
+            else:
+                self.instance = uis_instance
+        except (KeyError, OSError):
+            self.failed = True
+
+    @property
+    def WindowInputState(self):
+        if self.failed:
+            return None
+        try:
+            ptr = self.memory_module.get_pointer(
+                self.instance.raw_address,
+                self.offset_base["WindowInputState"]
+            )
+            if ptr == 0:
+                return None
+            return WindowInputState(ptr, self.memory_module)
+        except (KeyError, OSError):
+            return None
+
+class WindowInputState(RBXInstance):
+    def __init__(self, raw_address: int, memory_module):
+        super().__init__(raw_address, memory_module)
+        self._wis_offsets = Offsets["WindowInputState"]
+
+    @property
+    def CapsLock(self):
+        return self.memory_module.read_bool(
+            self.raw_address,
+            self._wis_offsets["CapsLock"]
+        )
+
+    @property
+    def CurrentTextBox(self):
+        ptr = self.memory_module.get_pointer(
+            self.raw_address,
+            self._wis_offsets["CurrentTextBox"]
+        )
+        if ptr == 0:
+            return None
+        return RBXInstance(ptr, self.memory_module)
