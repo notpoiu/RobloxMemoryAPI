@@ -658,28 +658,42 @@ class RBXInstance:
 
     @property
     def Color(self):
-        if "part" not in self.ClassName.lower():
-            return None
+        cn = self.ClassName
+        if "part" in cn.lower():
+            # Color is stored as 3 bytes (R, G, B) rather than floats
+            color_bytes = self.memory_module.read(self.raw_address + basepart_offsets["Color3"], 3)
+            if len(color_bytes) == 3:
+                return Color3(color_bytes[0] / 255.0, color_bytes[1] / 255.0, color_bytes[2] / 255.0)
+            return Color3(0, 0, 0)
+        elif cn == "SurfaceAppearance":
+            color_data = self.memory_module.read_floats(
+                self.raw_address + surfaceappearance_offsets["Color"],
+                3
+            )
+            return Color3(*color_data)
         
-        # Color is stored as 3 bytes (R, G, B) rather than floats
-        color_bytes = self.memory_module.read(self.raw_address + basepart_offsets["Color3"], 3)
-        if len(color_bytes) == 3:
-            return Color3(color_bytes[0] / 255.0, color_bytes[1] / 255.0, color_bytes[2] / 255.0)
-        return Color3(0, 0, 0)
+        return None
 
     @Color.setter
     def Color(self, value):
-        if "part" not in self.ClassName.lower():
-            raise AttributeError("Color3 is only available on BasePart-derived instances.")
+        cn = self.ClassName
         self._ensure_writable()
+        vec = self._as_color3(value, "Color")
 
-        vec = self._as_color3(value, "Color3")
-        r, g, b = int(vec.R * 255), int(vec.G * 255), int(vec.B * 255)
-        # Write 3 bytes directly
-        self.memory_module.write(
-            self.raw_address + basepart_offsets["Color3"],
-            bytes([r & 0xFF, g & 0xFF, b & 0xFF])
-        )
+        if "part" in cn.lower():
+            r, g, b = int(vec.R * 255), int(vec.G * 255), int(vec.B * 255)
+            # Write 3 bytes directly
+            self.memory_module.write(
+                self.raw_address + basepart_offsets["Color3"],
+                bytes([r & 0xFF, g & 0xFF, b & 0xFF])
+            )
+        elif cn == "SurfaceAppearance":
+            self.memory_module.write_floats(
+                self.raw_address + surfaceappearance_offsets["Color"],
+                (vec.R, vec.G, vec.B)
+            )
+        else:
+            raise AttributeError("Color is only available on BasePart-derived or SurfaceAppearance instances.")
 
     @property
     def Reflectance(self):
@@ -3674,27 +3688,6 @@ class RBXInstance:
             bytes([r & 0xFF, g & 0xFF, b & 0xFF])
         )
 
-
-    @property
-    def SurfaceAppearanceColor(self):
-        if self.ClassName != "SurfaceAppearance":
-            return None
-        color_data = self.memory_module.read_floats(
-            self.raw_address + surfaceappearance_offsets["Color"],
-            3
-        )
-        return Color3(*color_data)
-
-    @SurfaceAppearanceColor.setter
-    def SurfaceAppearanceColor(self, value):
-        if self.ClassName != "SurfaceAppearance":
-            raise AttributeError("SurfaceAppearanceColor is only available on SurfaceAppearance instances.")
-        self._ensure_writable()
-        vec = self._as_color3(value, "SurfaceAppearanceColor")
-        self.memory_module.write_floats(
-            self.raw_address + surfaceappearance_offsets["Color"],
-            (vec.R, vec.G, vec.B)
-        )
 
     @property
     def ColorMap(self):
