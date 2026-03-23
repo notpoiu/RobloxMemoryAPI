@@ -3674,6 +3674,139 @@ class RBXInstance:
             bytes([r & 0xFF, g & 0xFF, b & 0xFF])
         )
 
+
+    @property
+    def SurfaceAppearanceColor(self):
+        if self.ClassName != "SurfaceAppearance":
+            return None
+        color_data = self.memory_module.read_floats(
+            self.raw_address + surfaceappearance_offsets["Color"],
+            3
+        )
+        return Color3(*color_data)
+
+    @SurfaceAppearanceColor.setter
+    def SurfaceAppearanceColor(self, value):
+        if self.ClassName != "SurfaceAppearance":
+            raise AttributeError("SurfaceAppearanceColor is only available on SurfaceAppearance instances.")
+        self._ensure_writable()
+        vec = self._as_color3(value, "SurfaceAppearanceColor")
+        self.memory_module.write_floats(
+            self.raw_address + surfaceappearance_offsets["Color"],
+            (vec.R, vec.G, vec.B)
+        )
+
+    @property
+    def ColorMap(self):
+        if self.ClassName != "SurfaceAppearance":
+            return None
+        return self.memory_module.read_string(
+            self.raw_address + surfaceappearance_offsets["ColorMap"]
+        )
+
+    @ColorMap.setter
+    def ColorMap(self, value: str):
+        if self.ClassName != "SurfaceAppearance":
+            raise AttributeError("ColorMap is only available on SurfaceAppearance instances.")
+        self._ensure_writable()
+        self.memory_module.write_string(
+            self.raw_address + surfaceappearance_offsets["ColorMap"],
+            str(value)
+        )
+
+    @property
+    def EmissiveMaskContent(self):
+        if self.ClassName != "SurfaceAppearance":
+            return None
+        return self.memory_module.read_string(
+            self.raw_address + surfaceappearance_offsets["EmissiveMaskContent"]
+        )
+
+    @EmissiveMaskContent.setter
+    def EmissiveMaskContent(self, value: str):
+        if self.ClassName != "SurfaceAppearance":
+            raise AttributeError("EmissiveMaskContent is only available on SurfaceAppearance instances.")
+        self._ensure_writable()
+        self.memory_module.write_string(
+            self.raw_address + surfaceappearance_offsets["EmissiveMaskContent"],
+            str(value)
+        )
+
+    @property
+    def EmissiveTint(self):
+        if self.ClassName != "SurfaceAppearance":
+            return None
+        color_data = self.memory_module.read_floats(
+            self.raw_address + surfaceappearance_offsets["EmissiveTint"],
+            3
+        )
+        return Color3(*color_data)
+
+    @EmissiveTint.setter
+    def EmissiveTint(self, value):
+        if self.ClassName != "SurfaceAppearance":
+            raise AttributeError("EmissiveTint is only available on SurfaceAppearance instances.")
+        self._ensure_writable()
+        vec = self._as_color3(value, "EmissiveTint")
+        self.memory_module.write_floats(
+            self.raw_address + surfaceappearance_offsets["EmissiveTint"],
+            (vec.R, vec.G, vec.B)
+        )
+
+    @property
+    def MetalnessMap(self):
+        if self.ClassName != "SurfaceAppearance":
+            return None
+        return self.memory_module.read_string(
+            self.raw_address + surfaceappearance_offsets["MetalnessMap"]
+        )
+
+    @MetalnessMap.setter
+    def MetalnessMap(self, value: str):
+        if self.ClassName != "SurfaceAppearance":
+            raise AttributeError("MetalnessMap is only available on SurfaceAppearance instances.")
+        self._ensure_writable()
+        self.memory_module.write_string(
+            self.raw_address + surfaceappearance_offsets["MetalnessMap"],
+            str(value)
+        )
+
+    @property
+    def NormalMap(self):
+        if self.ClassName != "SurfaceAppearance":
+            return None
+        return self.memory_module.read_string(
+            self.raw_address + surfaceappearance_offsets["NormalMap"]
+        )
+
+    @NormalMap.setter
+    def NormalMap(self, value: str):
+        if self.ClassName != "SurfaceAppearance":
+            raise AttributeError("NormalMap is only available on SurfaceAppearance instances.")
+        self._ensure_writable()
+        self.memory_module.write_string(
+            self.raw_address + surfaceappearance_offsets["NormalMap"],
+            str(value)
+        )
+
+    @property
+    def RoughnessMap(self):
+        if self.ClassName != "SurfaceAppearance":
+            return None
+        return self.memory_module.read_string(
+            self.raw_address + surfaceappearance_offsets["RoughnessMap"]
+        )
+
+    @RoughnessMap.setter
+    def RoughnessMap(self, value: str):
+        if self.ClassName != "SurfaceAppearance":
+            raise AttributeError("RoughnessMap is only available on SurfaceAppearance instances.")
+        self._ensure_writable()
+        self.memory_module.write_string(
+            self.raw_address + surfaceappearance_offsets["RoughnessMap"],
+            str(value)
+        )
+
 class AttributeValue:
     def __init__(self, address, name, type_name, memory_module):
         self.address = address
@@ -5081,6 +5214,7 @@ class RunService(ServiceBase):
             if instance is None or instance.ClassName != "RunService":
                 self.failed = True
             else:
+                self.failed = False
                 self.instance = instance
         except (KeyError, OSError):
             self.failed = True
@@ -5089,8 +5223,7 @@ class RunService(ServiceBase):
     def HeartbeatFPS(self):
         if self.failed: return 0.0
         return self.memory_module.read_float(
-            self.instance.raw_address,
-            self.offset_base["HeartbeatFPS"]
+            self.instance.raw_address + self.offset_base["HeartbeatFPS"]
         )
 
 class ScriptContext(ServiceBase):
@@ -5103,6 +5236,7 @@ class ScriptContext(ServiceBase):
             if instance is None or instance.ClassName != "ScriptContext":
                 self.failed = True
             else:
+                self.failed = False
                 self.instance = instance
         except (KeyError, OSError):
             self.failed = True
@@ -5118,7 +5252,8 @@ class ScriptContext(ServiceBase):
     @RequireBypass.setter
     def RequireBypass(self, value: bool):
         if self.failed: return
-        self._ensure_writable()
+        if not hasattr(self.memory_module, "write"):
+            raise RuntimeError("Write operations require a memory module with write support.")
         self.memory_module.write_bool(
             self.instance.raw_address + self.offset_base["RequireBypass"],
             bool(value)
