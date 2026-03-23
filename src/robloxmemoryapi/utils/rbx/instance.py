@@ -38,6 +38,22 @@ weld_offsets = Offsets["Weld"]
 weldconstraint_offsets = Offsets["WeldConstraint"]
 surfaceappearance_offsets = Offsets["SurfaceAppearance"]
 script_offsets = Offsets["Script"]
+atmosphere_offsets = Offsets["Atmosphere"]
+bloomeffect_offsets = Offsets["BloomEffect"]
+depthoffieldeffect_offsets = Offsets["DepthOfFieldEffect"]
+materialcolors_offsets = Offsets["MaterialColors"]
+playerconfigurer_offsets = Offsets["PlayerConfigurer"]
+playermouse_offsets = Offsets["PlayerMouse"]
+renderjob_offsets = Offsets["RenderJob"]
+renderview_offsets = Offsets["RenderView"]
+runservice_offsets = Offsets["RunService"]
+scriptcontext_offsets = Offsets["ScriptContext"]
+specialmesh_offsets = Offsets["SpecialMesh"]
+sunrayseffect_offsets = Offsets["SunRaysEffect"]
+taskscheduler_offsets = Offsets["TaskScheduler"]
+terrain_offsets = Offsets["Terrain"]
+visualengine_offsets = Offsets["VisualEngine"]
+
 
 ROTATION_MATRIX_FLOATS = 9
 
@@ -430,6 +446,21 @@ class RBXInstance:
                 self.raw_address,
                 spawnlocation_offsets["Enabled"]
             )
+        elif self.ClassName == "BloomEffect":
+            return self.memory_module.read_bool(
+                self.raw_address,
+                bloomeffect_offsets["Enabled"]
+            )
+        elif self.ClassName == "DepthOfFieldEffect":
+            return self.memory_module.read_bool(
+                self.raw_address,
+                depthoffieldeffect_offsets["Enabled"]
+            )
+        elif self.ClassName == "SunRaysEffect":
+            return self.memory_module.read_bool(
+                self.raw_address,
+                sunrayseffect_offsets["Enabled"]
+            )
         return None
 
     @Enabled.setter
@@ -476,8 +507,26 @@ class RBXInstance:
                 self.raw_address + spawnlocation_offsets["Enabled"],
                 bool(value)
             )
+        elif self.ClassName == "BloomEffect":
+            self._ensure_writable()
+            self.memory_module.write_bool(
+                self.raw_address + bloomeffect_offsets["Enabled"],
+                bool(value)
+            )
+        elif self.ClassName == "DepthOfFieldEffect":
+            self._ensure_writable()
+            self.memory_module.write_bool(
+                self.raw_address + depthoffieldeffect_offsets["Enabled"],
+                bool(value)
+            )
+        elif self.ClassName == "SunRaysEffect":
+            self._ensure_writable()
+            self.memory_module.write_bool(
+                self.raw_address + sunrayseffect_offsets["Enabled"],
+                bool(value)
+            )
         else:
-            raise AttributeError("Enabled is only available on ScreenGui, ProximityPrompt, Tool, ColorCorrectionEffect, BlurEffect, ColorGradingEffect, or SpawnLocation instances.")
+            raise AttributeError("Enabled is only available on supported instances.")
     
     @property
     def Visible(self):
@@ -511,23 +560,34 @@ class RBXInstance:
 
     @property
     def Size(self):
-        if "part" in self.ClassName.lower():
+        cn = self.ClassName
+        if "part" in cn.lower():
             size_vector3 = self.memory_module.read_floats(
                 self.primitive_address + primitive_offsets["Size"],
                 3
             )
             return Vector3(*size_vector3)
+        elif cn == "BloomEffect":
+            return self.memory_module.read_float(
+                self.raw_address + bloomeffect_offsets["Size"]
+            )
         else:
             return self._read_udim2(self.raw_address + gui_offsets["Size"])
 
     @Size.setter
     def Size(self, value):
         self._ensure_writable()
-        if "part" in self.ClassName.lower():
+        cn = self.ClassName
+        if "part" in cn.lower():
             vec = self._as_vector3(value, "Size")
             self.memory_module.write_floats(
                 self.primitive_address + primitive_offsets["Size"],
                 (vec.X, vec.Y, vec.Z)
+            )
+        elif cn == "BloomEffect":
+            self.memory_module.write_float(
+                self.raw_address + bloomeffect_offsets["Size"],
+                float(value)
             )
         else:
             gui_size = self._as_udim2(value, "Size")
@@ -3165,6 +3225,455 @@ class RBXInstance:
             self.raw_address + surfaceappearance_offsets["EmissiveStrength"], float(value)
         )
 
+
+    # Atmosphere Props #
+    @property
+    def Density(self):
+        if self.ClassName != "Atmosphere":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + atmosphere_offsets["Density"]
+        )
+
+    @Density.setter
+    def Density(self, value: float):
+        if self.ClassName != "Atmosphere":
+            raise AttributeError("Density is only available on Atmosphere instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + atmosphere_offsets["Density"],
+            float(value)
+        )
+
+    @property
+    def Offset(self):
+        if self.ClassName != "Atmosphere":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + atmosphere_offsets["Offset"]
+        )
+
+    @Offset.setter
+    def Offset(self, value: float):
+        if self.ClassName != "Atmosphere":
+            raise AttributeError("Offset is only available on Atmosphere instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + atmosphere_offsets["Offset"],
+            float(value)
+        )
+
+    @property
+    def AtmosphereColor(self):
+        if self.ClassName != "Atmosphere":
+            return None
+        color_data = self.memory_module.read_floats(
+            self.raw_address + atmosphere_offsets["Color"],
+            3
+        )
+        return Color3(*color_data)
+
+    @AtmosphereColor.setter
+    def AtmosphereColor(self, value):
+        if self.ClassName != "Atmosphere":
+            raise AttributeError("AtmosphereColor is only available on Atmosphere instances.")
+        self._ensure_writable()
+        vec = self._as_color3(value, "AtmosphereColor")
+        self.memory_module.write_floats(
+            self.raw_address + atmosphere_offsets["Color"],
+            (vec.R, vec.G, vec.B)
+        )
+
+    @property
+    def Decay(self):
+        if self.ClassName != "Atmosphere":
+            return None
+        color_data = self.memory_module.read_floats(
+            self.raw_address + atmosphere_offsets["Decay"],
+            3
+        )
+        return Color3(*color_data)
+
+    @Decay.setter
+    def Decay(self, value):
+        if self.ClassName != "Atmosphere":
+            raise AttributeError("Decay is only available on Atmosphere instances.")
+        self._ensure_writable()
+        vec = self._as_color3(value, "Decay")
+        self.memory_module.write_floats(
+            self.raw_address + atmosphere_offsets["Decay"],
+            (vec.R, vec.G, vec.B)
+        )
+
+    @property
+    def Glare(self):
+        if self.ClassName != "Atmosphere":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + atmosphere_offsets["Glare"]
+        )
+
+    @Glare.setter
+    def Glare(self, value: float):
+        if self.ClassName != "Atmosphere":
+            raise AttributeError("Glare is only available on Atmosphere instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + atmosphere_offsets["Glare"],
+            float(value)
+        )
+
+    @property
+    def Haze(self):
+        if self.ClassName != "Atmosphere":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + atmosphere_offsets["Haze"]
+        )
+
+    @Haze.setter
+    def Haze(self, value: float):
+        if self.ClassName != "Atmosphere":
+            raise AttributeError("Haze is only available on Atmosphere instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + atmosphere_offsets["Haze"],
+            float(value)
+        )
+
+    # BloomEffect Props #
+    @property
+    def BloomIntensity(self):
+        if self.ClassName != "BloomEffect":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + bloomeffect_offsets["Intensity"]
+        )
+
+    @BloomIntensity.setter
+    def BloomIntensity(self, value: float):
+        if self.ClassName != "BloomEffect":
+            raise AttributeError("BloomIntensity is only available on BloomEffect instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + bloomeffect_offsets["Intensity"],
+            float(value)
+        )
+
+    @property
+    def BloomThreshold(self):
+        if self.ClassName != "BloomEffect":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + bloomeffect_offsets["Threshold"]
+        )
+
+    @BloomThreshold.setter
+    def BloomThreshold(self, value: float):
+        if self.ClassName != "BloomEffect":
+            raise AttributeError("BloomThreshold is only available on BloomEffect instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + bloomeffect_offsets["Threshold"],
+            float(value)
+        )
+
+    # DepthOfFieldEffect Props #
+    @property
+    def FocusDistance(self):
+        if self.ClassName != "DepthOfFieldEffect":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + depthoffieldeffect_offsets["FocusDistance"]
+        )
+
+    @FocusDistance.setter
+    def FocusDistance(self, value: float):
+        if self.ClassName != "DepthOfFieldEffect":
+            raise AttributeError("FocusDistance is only available on DepthOfFieldEffect instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + depthoffieldeffect_offsets["FocusDistance"],
+            float(value)
+        )
+
+    @property
+    def InFocusRadius(self):
+        if self.ClassName != "DepthOfFieldEffect":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + depthoffieldeffect_offsets["InFocusRadius"]
+        )
+
+    @InFocusRadius.setter
+    def InFocusRadius(self, value: float):
+        if self.ClassName != "DepthOfFieldEffect":
+            raise AttributeError("InFocusRadius is only available on DepthOfFieldEffect instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + depthoffieldeffect_offsets["InFocusRadius"],
+            float(value)
+        )
+
+    @property
+    def NearIntensity(self):
+        if self.ClassName != "DepthOfFieldEffect":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + depthoffieldeffect_offsets["NearIntensity"]
+        )
+
+    @NearIntensity.setter
+    def NearIntensity(self, value: float):
+        if self.ClassName != "DepthOfFieldEffect":
+            raise AttributeError("NearIntensity is only available on DepthOfFieldEffect instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + depthoffieldeffect_offsets["NearIntensity"],
+            float(value)
+        )
+
+    @property
+    def FarIntensity(self):
+        if self.ClassName != "DepthOfFieldEffect":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + depthoffieldeffect_offsets["FarIntensity"]
+        )
+
+    @FarIntensity.setter
+    def FarIntensity(self, value: float):
+        if self.ClassName != "DepthOfFieldEffect":
+            raise AttributeError("FarIntensity is only available on DepthOfFieldEffect instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + depthoffieldeffect_offsets["FarIntensity"],
+            float(value)
+        )
+
+    # SunRaysEffect Props #
+    @property
+    def SunRaysIntensity(self):
+        if self.ClassName != "SunRaysEffect":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + sunrayseffect_offsets["Intensity"]
+        )
+
+    @SunRaysIntensity.setter
+    def SunRaysIntensity(self, value: float):
+        if self.ClassName != "SunRaysEffect":
+            raise AttributeError("SunRaysIntensity is only available on SunRaysEffect instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + sunrayseffect_offsets["Intensity"],
+            float(value)
+        )
+
+    @property
+    def Spread(self):
+        if self.ClassName != "SunRaysEffect":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + sunrayseffect_offsets["Spread"]
+        )
+
+    @Spread.setter
+    def Spread(self, value: float):
+        if self.ClassName != "SunRaysEffect":
+            raise AttributeError("Spread is only available on SunRaysEffect instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + sunrayseffect_offsets["Spread"],
+            float(value)
+        )
+
+    # SpecialMesh Props #
+    @property
+    def MeshScale(self):
+        if self.ClassName != "SpecialMesh":
+            return None
+        vec_data = self.memory_module.read_floats(
+            self.raw_address + specialmesh_offsets["Scale"],
+            3
+        )
+        return Vector3(*vec_data)
+
+    @MeshScale.setter
+    def MeshScale(self, value):
+        if self.ClassName != "SpecialMesh":
+            raise AttributeError("MeshScale is only available on SpecialMesh instances.")
+        self._ensure_writable()
+        vec = self._as_vector3(value, "MeshScale")
+        self.memory_module.write_floats(
+            self.raw_address + specialmesh_offsets["Scale"],
+            (vec.X, vec.Y, vec.Z)
+        )
+
+    @property
+    def SpecialMeshId(self):
+        if self.ClassName != "SpecialMesh":
+            return None
+        return self.memory_module.read_string(
+            self.raw_address + specialmesh_offsets["MeshId"]
+        )
+
+    @SpecialMeshId.setter
+    def SpecialMeshId(self, value: str):
+        if self.ClassName != "SpecialMesh":
+            raise AttributeError("SpecialMeshId is only available on SpecialMesh instances.")
+        self._ensure_writable()
+        self.memory_module.write_string(
+            self.raw_address + specialmesh_offsets["MeshId"],
+            str(value)
+        )
+
+    # Terrain Props #
+    @property
+    def GrassLength(self):
+        if self.ClassName != "Terrain":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + terrain_offsets["GrassLength"]
+        )
+
+    @GrassLength.setter
+    def GrassLength(self, value: float):
+        if self.ClassName != "Terrain":
+            raise AttributeError("GrassLength is only available on Terrain instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + terrain_offsets["GrassLength"],
+            float(value)
+        )
+
+    @property
+    def WaterReflectance(self):
+        if self.ClassName != "Terrain":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + terrain_offsets["WaterReflectance"]
+        )
+
+    @WaterReflectance.setter
+    def WaterReflectance(self, value: float):
+        if self.ClassName != "Terrain":
+            raise AttributeError("WaterReflectance is only available on Terrain instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + terrain_offsets["WaterReflectance"],
+            float(value)
+        )
+
+    @property
+    def WaterTransparency(self):
+        if self.ClassName != "Terrain":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + terrain_offsets["WaterTransparency"]
+        )
+
+    @WaterTransparency.setter
+    def WaterTransparency(self, value: float):
+        if self.ClassName != "Terrain":
+            raise AttributeError("WaterTransparency is only available on Terrain instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + terrain_offsets["WaterTransparency"],
+            float(value)
+        )
+
+    @property
+    def WaterWaveSize(self):
+        if self.ClassName != "Terrain":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + terrain_offsets["WaterWaveSize"]
+        )
+
+    @WaterWaveSize.setter
+    def WaterWaveSize(self, value: float):
+        if self.ClassName != "Terrain":
+            raise AttributeError("WaterWaveSize is only available on Terrain instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + terrain_offsets["WaterWaveSize"],
+            float(value)
+        )
+
+    @property
+    def WaterWaveSpeed(self):
+        if self.ClassName != "Terrain":
+            return None
+        return self.memory_module.read_float(
+            self.raw_address + terrain_offsets["WaterWaveSpeed"]
+        )
+
+    @WaterWaveSpeed.setter
+    def WaterWaveSpeed(self, value: float):
+        if self.ClassName != "Terrain":
+            raise AttributeError("WaterWaveSpeed is only available on Terrain instances.")
+        self._ensure_writable()
+        self.memory_module.write_float(
+            self.raw_address + terrain_offsets["WaterWaveSpeed"],
+            float(value)
+        )
+
+    @property
+    def WaterColor(self):
+        if self.ClassName != "Terrain":
+            return None
+        color_data = self.memory_module.read_floats(
+            self.raw_address + terrain_offsets["WaterColor"],
+            3
+        )
+        return Color3(*color_data)
+
+    @WaterColor.setter
+    def WaterColor(self, value):
+        if self.ClassName != "Terrain":
+            raise AttributeError("WaterColor is only available on Terrain instances.")
+        self._ensure_writable()
+        vec = self._as_color3(value, "WaterColor")
+        self.memory_module.write_floats(
+            self.raw_address + terrain_offsets["WaterColor"],
+            (vec.R, vec.G, vec.B)
+        )
+
+
+    # Terrain Material Colors
+    def GetMaterialColor(self, material_name: str):
+        if self.ClassName != "Terrain":
+            raise AttributeError("GetMaterialColor is only available on Terrain instances.")
+
+        offset = materialcolors_offsets.get(material_name)
+        if offset is None:
+            raise ValueError(f"Material {material_name} not found in MaterialColors offsets.")
+
+        material_colors_address = self.raw_address + terrain_offsets["MaterialColors"]
+        color_bytes = self.memory_module.read(material_colors_address + offset, 3)
+        if len(color_bytes) == 3:
+            return Color3(color_bytes[0] / 255.0, color_bytes[1] / 255.0, color_bytes[2] / 255.0)
+        return Color3(0, 0, 0)
+
+    def SetMaterialColor(self, material_name: str, value):
+        if self.ClassName != "Terrain":
+            raise AttributeError("SetMaterialColor is only available on Terrain instances.")
+
+        offset = materialcolors_offsets.get(material_name)
+        if offset is None:
+            raise ValueError(f"Material {material_name} not found in MaterialColors offsets.")
+
+        self._ensure_writable()
+        vec = self._as_color3(value, "MaterialColor")
+        r, g, b = int(vec.R * 255), int(vec.G * 255), int(vec.B * 255)
+
+        material_colors_address = self.raw_address + terrain_offsets["MaterialColors"]
+        self.memory_module.write(
+            material_colors_address + offset,
+            bytes([r & 0xFF, g & 0xFF, b & 0xFF])
+        )
+
 class AttributeValue:
     def __init__(self, address, name, type_name, memory_module):
         self.address = address
@@ -3828,12 +4337,37 @@ class DataModel(ServiceBase):
 
         return WorkspaceService(self.memory_module, self)
 
+
     @property
     def Lighting(self):
         if not self._ensure_instance():
             return None
 
         return LightingService(self.memory_module, self)
+
+    @property
+    def RunService(self):
+        if not self._ensure_instance():
+            return None
+
+        return RunService(self.memory_module, self)
+
+    @property
+    def ScriptContext(self):
+        if not self._ensure_instance():
+            return None
+
+        return ScriptContext(self.memory_module, self)
+
+
+
+    @property
+    def VisualEngine(self):
+        return VisualEngine(self.memory_module)
+
+    @property
+    def TaskScheduler(self):
+        return TaskScheduler(self.memory_module)
 
     @property
     def MouseService(self):
@@ -3868,6 +4402,12 @@ class DataModel(ServiceBase):
 
             if className == "Lighting":
                 return self.Lighting
+
+            if className == "RunService":
+                return self.RunService
+
+            if className == "ScriptContext":
+                return self.ScriptContext
 
             return instance
             
@@ -4529,3 +5069,105 @@ class WindowInputState(RBXInstance):
         if ptr == 0:
             return None
         return RBXInstance(ptr, self.memory_module)
+
+
+class RunService(ServiceBase):
+    def __init__(self, memory_module, game):
+        super().__init__()
+        self.memory_module = memory_module
+        self.offset_base = runservice_offsets
+        try:
+            instance = game.GetRawService("RunService")
+            if instance is None or instance.ClassName != "RunService":
+                self.failed = True
+            else:
+                self.instance = instance
+        except (KeyError, OSError):
+            self.failed = True
+
+    @property
+    def HeartbeatFPS(self):
+        if self.failed: return 0.0
+        return self.memory_module.read_float(
+            self.instance.raw_address,
+            self.offset_base["HeartbeatFPS"]
+        )
+
+class ScriptContext(ServiceBase):
+    def __init__(self, memory_module, game):
+        super().__init__()
+        self.memory_module = memory_module
+        self.offset_base = scriptcontext_offsets
+        try:
+            instance = game.GetRawService("ScriptContext")
+            if instance is None or instance.ClassName != "ScriptContext":
+                self.failed = True
+            else:
+                self.instance = instance
+        except (KeyError, OSError):
+            self.failed = True
+
+    @property
+    def RequireBypass(self):
+        if self.failed: return False
+        return self.memory_module.read_bool(
+            self.instance.raw_address,
+            self.offset_base["RequireBypass"]
+        )
+
+    @RequireBypass.setter
+    def RequireBypass(self, value: bool):
+        if self.failed: return
+        self._ensure_writable()
+        self.memory_module.write_bool(
+            self.instance.raw_address + self.offset_base["RequireBypass"],
+            bool(value)
+        )
+
+class VisualEngine:
+    def __init__(self, memory_module):
+        self.memory_module = memory_module
+        self.offset_base = visualengine_offsets
+        try:
+            self.raw_address = self.memory_module.get_address(self.offset_base["Pointer"], pointer=True)
+            self.failed = False
+        except (KeyError, OSError):
+            self.raw_address = 0
+            self.failed = True
+
+    @property
+    def Dimensions(self):
+        if self.failed: return None
+        data = self.memory_module.read_floats(
+            self.raw_address + self.offset_base["Dimensions"],
+            2
+        )
+        return Vector2(*data)
+
+class TaskScheduler:
+    def __init__(self, memory_module):
+        self.memory_module = memory_module
+        self.offset_base = taskscheduler_offsets
+        try:
+            self.raw_address = self.memory_module.get_address(self.offset_base["Pointer"], pointer=True)
+            self.failed = False
+        except (KeyError, OSError):
+            self.raw_address = 0
+            self.failed = True
+
+    @property
+    def MaxFPS(self):
+        if self.failed: return 0.0
+        return self.memory_module.read_float(
+            self.raw_address + self.offset_base["MaxFPS"],
+        )
+
+    @MaxFPS.setter
+    def MaxFPS(self, value: float):
+        if self.failed: return
+        if not hasattr(self.memory_module, "write"):
+            raise RuntimeError("Write operations require a memory module with write support.")
+        self.memory_module.write_float(
+            self.raw_address + self.offset_base["MaxFPS"],
+            float(value)
+        )
