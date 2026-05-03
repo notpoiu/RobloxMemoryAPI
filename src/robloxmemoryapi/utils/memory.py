@@ -393,29 +393,38 @@ class EvasiveProcess:
                     
                     if length < current_capacity:
                         self.write(ptr + length, b'\x00')
+                    
+                    self.write_int(length_address, length)
+                    return
+                # ptr is null despite capacity > 15 — fall through to allocate
             else:
                 data_to_write = encoded + b'\x00' * (16 - length)
                 self.write(address, data_to_write[:16])
+                self.write_int(length_address, length)
+                return
         
-        else:
-            new_capacity = length + 16 # Padding for future edits
-            ptr = self.virtual_alloc(new_capacity)
-            
-            if ptr == 0:
-                raise MemoryError("Failed to allocate memory for string.")
-            
-            self.write(ptr, encoded + b'\x00') # Write string
+        # Need to allocate new memory (capacity too small, or pointer was null)
+        new_capacity = length + 16 # Padding for future edits
+        ptr = self.virtual_alloc(new_capacity)
+        
+        if ptr == 0:
+            raise MemoryError("Failed to allocate memory for string.")
+        
+        self.write(ptr, encoded + b'\x00') # Write string
 
-            self.write_long(address, ptr)           # Pointer
-            self.write_int(capacity_address, new_capacity) # Capacity
-
+        self.write_long(address, ptr)           # Pointer
         self.write_int(length_address, length)
+        self.write_int(capacity_address, new_capacity) # Capacity
 
     def read_string(self, address: int, offset: int = 0) -> str:
         if offset != 0:
             address += offset
         
         string_length = self.read_int(address + 0x10)
+        if string_length <= 0:
+            return ""
+        if string_length > 1024 * 1024:  # sanity cap at 1 MB
+            return ""
         if string_length <= 15:
             return self.read_raw_string(address, string_length)
         else:
