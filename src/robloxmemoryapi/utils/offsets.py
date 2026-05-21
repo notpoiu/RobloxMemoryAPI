@@ -1,6 +1,6 @@
 import requests
 
-BASE_URL = "https://imtheo.lol/Offsets"
+BASE_URL = "https://offsets.imtheo.lol"
 
 # Offsets
 OffsetsRequest = requests.get(f"{BASE_URL}/Offsets.json")
