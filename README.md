@@ -6,7 +6,7 @@ This was made by [upio](https://github.com/notpoiu), [mstudio45](https://github.
 
 Join our [Discord](https://discord.gg/FJcJMuze7S) for support and updates.
 
-Offsets are sourced from [imtheo.lol](https://imtheo.lol/Offsets). This project is not affiliated with imtheo.lol in any way.
+Offsets are sourced from [imtheo.lol](https://offsets.imtheo.lol/). This project is not affiliated with imtheo.lol in any way.
 
 ## Installation
 
