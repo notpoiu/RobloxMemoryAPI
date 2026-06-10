@@ -2,6 +2,7 @@ from ..offsets import *
 import time, math
 import threading
 import inspect
+import struct
 from .datastructures import *
 from .bytecode import decryptor, encryptor
 
@@ -5065,6 +5066,147 @@ class MeshData:
     def FaceEnd(self):
         return self.memory_module.get_pointer(self.raw_address, self.offset_base["FaceEnd"])
 
+class Head:
+    def __init__(self, raw_address: int, memory_module):
+        self.raw_address = raw_address
+        self.memory_module = memory_module
+        self.offset_base = meshcontentprovider_offsets
+        self.Node = raw_address
+        if self.Node:
+            self.NextNode()
+
+    def NextNode(self):
+        if not self.Node:
+            return None
+
+        Node = self.memory_module.get_pointer(self.Node)
+        if Node and Node != self.raw_address:
+            self.Node = Node
+            return self.Node
+
+        self.Node = None
+        return None
+
+    @property
+    def ToMeshData(self):
+        if not self.Node:
+            return 0
+        return self.memory_module.get_pointer(self.Node, self.offset_base["ToMeshData"])
+
+    @property
+    def MeshData(self):
+        to_mesh_data = self.ToMeshData
+        if not to_mesh_data:
+            return None
+
+        ptr = self.memory_module.get_pointer(to_mesh_data, self.offset_base["MeshData"])
+        return MeshData(ptr, self.memory_module) if ptr != 0 else None
+
+    def GetMeshesIds(self):
+        ids = {}
+        while self.Node:
+            raw_id = self.AssetID
+            clean_id = raw_id[raw_id.rfind("=") + 1:] if raw_id and "=" in raw_id else raw_id
+            ids[raw_id] = clean_id
+            self.NextNode()
+        return ids
+
+    def GetMeshData(self, id: str | tuple = None, max_nodes: int = 100_000) -> dict[str, dict[str]]:
+        """
+        Extract meshes.
+        Args:
+            id (str): If an ID is provided, the search returns when the corresponding mesh is found.
+            id (tuple): If a tuple of IDs is provided, the search returns once all corresponding meshes are found.
+            max_nodes: The maximum number of nodes to search through.
+
+        Returns:
+            dict: A dictionary mapping mesh IDs to their extracted data.
+            Each mesh data dictionary contains:
+                id (str)
+                rawId (str)
+                vertices (list)
+                faces (list)
+                vertexCount (int)
+                faceCount (int)
+        """
+        if isinstance(id, str):
+            id = (id, )
+
+        VERTEX_SIZE = 40
+        FACE_SIZE = 12
+
+        meshes = {}
+        visited = 0
+        while self.Node and visited < max_nodes:
+            visited += 1
+            raw_id = self.AssetID
+            clean_id = raw_id[raw_id.rfind("=") + 1:] if raw_id and "=" in raw_id else raw_id
+
+            mesh = self.MeshData
+
+            if id:
+                flag = clean_id in id
+            else:
+                flag = True
+
+            if mesh and flag:
+                vertex_start = mesh.VertexStart
+                vertex_end = mesh.VertexEnd
+                face_start = mesh.FaceStart
+                face_end = mesh.FaceEnd
+
+                if (
+                    vertex_start
+                    and vertex_end
+                    and face_start
+                    and face_end
+                    and vertex_end > vertex_start
+                    and face_end > face_start
+                ):
+                    vertex_count = (vertex_end - vertex_start) // VERTEX_SIZE
+                    face_count = (face_end - face_start) // FACE_SIZE
+
+                    if 0 < vertex_count < 5_000_000 and 0 < face_count < 5_000_000:
+                        vertices = []
+                        for i in range(vertex_count):
+                            data = bytes(self.memory_module.read(vertex_start + i * VERTEX_SIZE, VERTEX_SIZE))
+                            pos = struct.unpack_from("<3f", data, 0x00)
+                            normal = struct.unpack_from("<3f", data, 0x0C)
+                            uv = struct.unpack_from("<2f", data, 0x18)
+                            vertices.append({
+                                "position": [pos[0], pos[1], pos[2]],
+                                "normal": [normal[0], normal[1], normal[2]],
+                                "uv": [uv[0], 1.0 - uv[1]]
+                            })
+
+                        faces = []
+                        for i in range(face_count):
+                            data = bytes(self.memory_module.read(face_start + i * FACE_SIZE, FACE_SIZE))
+                            i1, i2, i3 = struct.unpack_from("<3I", data, 0x00)
+                            if i1 < len(vertices) and i2 < len(vertices) and i3 < len(vertices):
+                                faces.append([int(i1), int(i2), int(i3)])
+
+                        meshes[clean_id] = {
+                            "id": clean_id,
+                            "rawId": raw_id,
+                            "vertices": vertices or [],
+                            "faces": faces or [],
+                            "vertexCount": vertex_count,
+                            "faceCount": face_count,
+                        }
+
+            if id and set(id).issubset(meshes):
+                return meshes
+
+            self.NextNode()
+        return meshes
+
+    @property
+    def AssetID(self):
+        if not self.Node:
+            return ""
+        return self.memory_module.read_string(self.Node, self.offset_base["AssetID"])
+
 class MeshContentProviderService(ServiceBase):
     def __init__(self, memory_module, game: DataModel):
         super().__init__()
@@ -5079,18 +5221,22 @@ class MeshContentProviderService(ServiceBase):
         except (KeyError, OSError):
             self.failed = True
 
-    def _ptr(self, offset_name):
-        if self.failed:
+    def _ptr(self, address, offset_name=0):
+        if self.failed or not address:
             return 0
-        return self.memory_module.get_pointer(self.instance.raw_address, self.offset_base[offset_name])
+        offset = self.offset_base[offset_name] if isinstance(offset_name, str) else offset_name
+        return self.memory_module.get_pointer(address, offset)
 
     @property
     def Cache(self):
-        return self._ptr("Cache")
+        if self.failed:
+            return 0
+        return self._ptr(self.instance.raw_address, self.offset_base.get("Cache", 0xF0))
 
     @property
     def LRUCache(self):
-        return self._ptr("LRUCache")
+        cache = self.Cache
+        return self._ptr(cache, "LRUCache") if cache else 0
 
     @property
     def AssetID(self):
@@ -5099,14 +5245,10 @@ class MeshContentProviderService(ServiceBase):
         return self.memory_module.read_long(self.instance.raw_address, self.offset_base["AssetID"])
 
     @property
-    def MeshData(self):
-        ptr = self._ptr("MeshData")
-        return MeshData(ptr, self.memory_module) if ptr != 0 else None
-
-    @property
-    def ToMeshData(self):
-        ptr = self._ptr("ToMeshData")
-        return MeshData(ptr, self.memory_module) if ptr != 0 else None
+    def Head(self):
+        lru_cache = self.LRUCache
+        ptr = self._ptr(lru_cache, 0x08) if lru_cache else 0
+        return Head(ptr, self.memory_module) if ptr != 0 else None
 
 class PlayerConfigurer:
     def __init__(self, memory_module, raw_address: int | None = None):
