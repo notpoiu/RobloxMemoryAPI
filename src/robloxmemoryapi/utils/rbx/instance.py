@@ -5104,9 +5104,9 @@ class Head:
         """
         Extract meshes.
         Args:
-            id (str): if id is provided when the corresponding mesh is found it will return else it will gather all the meshes.
-            id (tuple): if a set of id's is provided it will return once all the meshes are found.
-            max_nodes: max nodes to search through.
+            id (str): If an ID is provided, the search returns when the corresponding mesh is found.
+            id (tuple): If a tuple of IDs is provided, the search returns once all corresponding meshes are found.
+            max_nodes: The maximum number of nodes to search through.
 
         Returns:
             dict: A dictionary mapping mesh IDs to their extracted data. 
