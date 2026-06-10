@@ -5076,11 +5076,12 @@ class Head:
         
     def NextNode(self):
         Node = self.memory_module.get_pointer(self.Node)
-        if Node == self.Node or Node == self.raw_address:
+        if Node and Node != self.raw_address:
+            self.Node = Node
+            return self.Node
+        else:
             self.Node = None
             return None
-        self.Node = Node
-        return self.Node
     
     @property
     def ToMeshData(self):
@@ -5095,12 +5096,12 @@ class Head:
         ids = {}
         while self.Node:
             raw_id = self.AssetID
-            clean_id = raw_id[raw_id.rfind("=") + 1:] if raw_id and "=" in raw_id else (raw_id or "")
+            clean_id = raw_id[raw_id.rfind("=") + 1:] if raw_id and "=" in raw_id else raw_id
             ids[raw_id] = clean_id
             self.NextNode()
         return ids
      
-    def GetMeshData(self, id: str | tuple = None, max_nodes: int = 100000) -> dict[str, dict[str]]:
+    def GetMeshData(self, id: str | tuple = None, max_nodes: int = 100_000) -> dict[str, dict[str]]:
         """
         Extract meshes.
         Args:
@@ -5149,7 +5150,7 @@ class Head:
                     vertex_count = (vertex_end - vertex_start) // VERTEX_SIZE
                     face_count = (face_end - face_start) // FACE_SIZE
 
-                    if 0 < vertex_count < 5000000 and 0 < face_count < 5000000:
+                    if 0 < vertex_count < 5_000_000 and 0 < face_count < 5_000_000:
                         vertices = []
                         for i in range(vertex_count):
                             data = bytes(self.memory_module.read(vertex_start + i * VERTEX_SIZE, VERTEX_SIZE))
