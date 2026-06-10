@@ -5127,7 +5127,6 @@ class Head:
         meshes = {}
         visited = 0
         extracted = 0
-        max_nodes = 100000
         while self.Node and visited < max_nodes:
             visited += 1
             raw_id   = self.AssetID
