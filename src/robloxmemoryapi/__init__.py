@@ -53,7 +53,8 @@ class RobloxGameClient:
         process_name: str = "RobloxPlayerBeta.exe",
         allow_write: bool = False,
     ):
-        if platform.system() != "Windows":
+        system = platform.system()
+        if system not in {"Windows", "Darwin"}:
             self.failed = True
             return
 
@@ -65,6 +66,9 @@ class RobloxGameClient:
             PROCESS_VM_OPERATION,
             get_pid_by_name,
         )
+
+        if system == "Darwin" and process_name == "RobloxPlayerBeta.exe":
+            process_name = "RobloxPlayer"
 
         if pid is None:
             self.pid = get_pid_by_name(process_name)
@@ -87,8 +91,8 @@ class RobloxGameClient:
 
     @property
     def FFlags(self):
-        if platform.system() != "Windows":
-            raise RuntimeError("This module is only compatible with Windows.")
+        if platform.system() not in {"Windows", "Darwin"}:
+            raise RuntimeError("This module is only compatible with Windows and macOS.")
         elif self.failed:
             raise RuntimeError("There was an error while getting access to memory. Please try again later.")
 
@@ -99,8 +103,8 @@ class RobloxGameClient:
 
     @property
     def DataModel(self):
-        if platform.system() != "Windows":
-            raise RuntimeError("This module is only compatible with Windows.")
+        if platform.system() not in {"Windows", "Darwin"}:
+            raise RuntimeError("This module is only compatible with Windows and macOS.")
         elif self.failed:
             raise RuntimeError("There was an error while getting access to memory. Please try again later.")
 

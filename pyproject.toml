@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core>=0.10", "pybind11>=2.12"]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "robloxmemoryapi"
-version = "0.3.0"
+version = "0.3.1"
 description = "Python Library that abstracts reading and writing data from the Roblox DataModel"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.9"
@@ -34,13 +34,14 @@ dependencies = [
 Homepage = "https://github.com/notpoiu/RobloxMemoryAPI"
 Issues = "https://github.com/notpoiu/RobloxMemoryAPI/issues"
 
-[tool.setuptools]
-package-dir = {"" = "src"}
-include-package-data = true
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["src/robloxmemoryapi"]
 
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-data]
-robloxmemoryapi = ["data/*.json"]
-
+[tool.scikit-build.sdist]
+include = [
+  "CMakeLists.txt",
+  "src/robloxmemoryapi/**/*.cpp",
+  "src/robloxmemoryapi/**/*.py",
+]
