@@ -70,7 +70,7 @@ _ENABLED_OFFSETS_BY_CLASS = {
     "BloomEffect": bloom_effect_offsets,
     "DepthOfFieldEffect": depth_of_field_effect_offsets,
     "SunRaysEffect": sun_rays_effect_offsets,
-    "ScreenGui": {"Enabled": gui_offsets["ScreenGui_Enabled"]},
+    "ScreenGui": {"Enabled": gui_offsets.get("ScreenGui_Enabled")},
     "ProximityPrompt": proximityprompt_offsets,
     "Tool": tool_offsets,
     "SpawnLocation": spawnlocation_offsets,
@@ -293,6 +293,12 @@ class RBXInstance:
             if write:
                 raise AttributeError(
                     f"{property_name} is only available on {self._format_class_list(offsets_by_class)} instances."
+                )
+            return None
+        if offsets.get(property_name) is None:
+            if write:
+                raise AttributeError(
+                    f"{property_name} offset is not available for {self.ClassName} instances."
                 )
             return None
         return offsets
@@ -4632,8 +4638,13 @@ class DataModel(ServiceBase):
 
         with self._refresh_lock:
             try:
-                fake_datamodel_ptr = self.memory_module.get_address(Offsets["FakeDataModel"]["Pointer"], pointer=True)
-                datamodel_address_ptr = self.memory_module.get_pointer(fake_datamodel_ptr, Offsets["FakeDataModel"]["RealDataModel"])
+                visual_engine = VisualEngine(self.memory_module)
+                fake_datamodel_ptr = visual_engine.FakeDataModel if not visual_engine.failed else 0
+                datamodel_address_ptr = (
+                    self.memory_module.get_pointer(fake_datamodel_ptr, Offsets["FakeDataModel"]["RealDataModel"])
+                    if fake_datamodel_ptr != 0
+                    else 0
+                )
 
                 if datamodel_address_ptr == 0:
                     if self.instance is not None:

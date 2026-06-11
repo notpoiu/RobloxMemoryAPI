@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "robloxmemoryapi"
-version = "0.3.1"
+version = "0.3.2"
 description = "Python Library that abstracts reading and writing data from the Roblox DataModel"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.9"
@@ -14,11 +14,12 @@ authors = [
   { name = "mstudio45", email = "mstudio45@users.noreply.github.com" },
   { name = "ActualMasterOogway", email = "ActualMasterOogway@users.noreply.github.com" },
 ]
-keywords = ["roblox", "memory", "windows"]
+keywords = ["roblox", "memory", "windows", "macOS"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: MIT License",
   "Operating System :: Microsoft :: Windows",
+  "Operating System :: MacOS",
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
   "Topic :: Software Development :: Libraries",

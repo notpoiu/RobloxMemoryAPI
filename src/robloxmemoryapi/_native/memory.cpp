@@ -2,9 +2,11 @@
 #include <pybind11/stl.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstring>
 #include <iomanip>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -26,6 +28,7 @@ namespace py = pybind11;
 #include <mach-o/loader.h>
 #include <libproc.h>
 #include <sys/proc_info.h>
+#include <unistd.h>
 #endif
 
 namespace {
@@ -38,6 +41,17 @@ constexpr std::uint32_t MEM_COMMIT_VALUE = 0x1000;
 constexpr std::uint32_t MEM_RESERVE_VALUE = 0x2000;
 constexpr std::uint32_t PAGE_READWRITE_VALUE = 0x04;
 constexpr std::uint32_t PAGE_EXECUTE_READWRITE_VALUE = 0x40;
+
+#if defined(__APPLE__)
+constexpr std::string_view MACOS_CODESIGN_HINT =
+    "\n\nTry ad-hoc codesigning Roblox and the Python executable/launcher, "
+    "from a sudo/root shell run the following commands:\n"
+    "from robloxmemoryapi import codesign_roblox_macos, codesign_python_macos\n\n"
+    "# run with sudo\n"
+    "codesign_python_macos()\n"
+    "codesign_roblox_macos()\n\n"
+    "Then restart roblox and run the script again.";
+#endif
 
 std::string hex_status(long status) {
     std::ostringstream oss;
@@ -276,13 +290,22 @@ public:
             raise_python(PyExc_ConnectionError, "Failed to get module base address.");
         }
 #elif defined(__APPLE__)
+        if (geteuid() != 0) {
+            raise_python(
+                PyExc_PermissionError,
+                "macOS memory access requires running the Python process with sudo/root. "
+                "Run this script with sudo and try again."
+            );
+        }
+
         mach_port_t task = MACH_PORT_NULL;
         kern_return_t result = task_for_pid(mach_task_self(), pid, &task);
         if (result != KERN_SUCCESS) {
             raise_python(
                 PyExc_OSError,
                 "task_for_pid failed: " + std::string(mach_error_string(result)) +
-                    ". macOS memory reads require permission to acquire the target task port."
+                    ". macOS memory reads require permission to acquire the target task port." +
+                    std::string(MACOS_CODESIGN_HINT)
             );
         }
 
@@ -535,6 +558,104 @@ public:
         return py::reinterpret_steal<py::str>(decoded).cast<std::string>();
     }
 
+#if defined(__APPLE__)
+    static bool is_plausible_string(const std::string &value) {
+        if (value.empty()) {
+            return false;
+        }
+
+        return std::all_of(value.begin(), value.end(), [](const unsigned char c) {
+            return c == '\t' || c == '\n' || c == '\r' || std::isprint(c);
+        });
+    }
+
+    std::optional<std::string> read_libcpp_string(std::uintptr_t address) {
+        const std::string bytes = read_bytes(address, 24);
+        if (bytes.size() != 24) {
+            return std::nullopt;
+        }
+
+        auto read_qword = [&](const std::size_t offset) {
+            std::uintptr_t value = 0;
+            std::memcpy(&value, bytes.data() + offset, sizeof(value));
+            return value;
+        };
+
+        auto read_inline = [&](const std::size_t data_offset, const std::size_t size)
+            -> std::optional<std::string> {
+            if (size == 0 || data_offset + size > bytes.size()) {
+                return std::nullopt;
+            }
+
+            std::string value(bytes.data() + data_offset, size);
+            if (!is_plausible_string(value)) {
+                return std::nullopt;
+            }
+
+            return value;
+        };
+
+        // libc++ short layout used by current Roblox macOS builds stores raw size in byte 0.
+        if (static_cast<unsigned char>(bytes[0]) <= 23) {
+            if (const auto value = read_inline(1, static_cast<unsigned char>(bytes[0]))) {
+                return value;
+            }
+        }
+
+        // Some libc++ layouts shift the short size left by one.
+        if ((static_cast<unsigned char>(bytes[0]) & 1U) == 0 &&
+            (static_cast<unsigned char>(bytes[0]) >> 1) <= 23) {
+            if (const auto value = read_inline(1, static_cast<unsigned char>(bytes[0]) >> 1)) {
+                return value;
+            }
+        }
+
+        // Alternate libc++ layout: short data begins at byte 0 and size is stored in byte 23.
+        if (static_cast<unsigned char>(bytes[23]) <= 23) {
+            if (const auto value = read_inline(0, static_cast<unsigned char>(bytes[23]))) {
+                return value;
+            }
+        }
+
+        if ((static_cast<unsigned char>(bytes[23]) & 1U) == 0 &&
+            (static_cast<unsigned char>(bytes[23]) >> 1) <= 23) {
+            if (const auto value = read_inline(0, static_cast<unsigned char>(bytes[23]) >> 1)) {
+                return value;
+            }
+        }
+
+        auto read_external = [&](std::uintptr_t data_ptr, std::uintptr_t size)
+            -> std::optional<std::string> {
+            if (data_ptr < 0x10000 || size == 0 || size > 4096) {
+                return std::nullopt;
+            }
+
+            std::string value = read_raw_string(data_ptr, static_cast<std::size_t>(size + 1));
+            if (value.size() != size || !is_plausible_string(value)) {
+                return std::nullopt;
+            }
+
+            return value;
+        };
+
+        // libc++ default long layout: cap, size, data.
+        if (static_cast<unsigned char>(bytes[0]) & 1U) {
+            if (const auto value = read_external(read_qword(16), read_qword(8))) {
+                return value;
+            }
+        }
+
+        // libc++ alternate long layout: data, size, cap.
+        if (static_cast<unsigned char>(bytes[23]) & 0x80U) {
+            if (const auto value = read_external(read_qword(0), read_qword(8))) {
+                return value;
+            }
+        }
+
+        return std::nullopt;
+    }
+#endif
+
     void write_raw_string(std::uintptr_t address, const std::string &value, bool null_terminate = true) {
         std::string bytes = value;
         if (null_terminate) {
@@ -586,6 +707,13 @@ public:
 
     std::string read_string(std::uintptr_t address, std::uintptr_t offset = 0) {
         address += offset;
+
+#if defined(__APPLE__)
+        if (const auto value = read_libcpp_string(address)) {
+            return *value;
+        }
+#endif
+
         const int string_length = read_int(address + 0x10);
 
         if (string_length <= 0 || string_length > 1024 * 1024) {
@@ -682,7 +810,11 @@ private:
         }
 
         if (result != KERN_SUCCESS) {
-            raise_python(PyExc_OSError, "mach_vm_read_overwrite failed: " + std::string(mach_error_string(result)));
+            raise_python(
+                PyExc_OSError,
+                "mach_vm_read_overwrite failed: " + std::string(mach_error_string(result)) +
+                    std::string(MACOS_CODESIGN_HINT)
+            );
         }
 
         buffer.resize(static_cast<std::size_t>(bytes_read));
