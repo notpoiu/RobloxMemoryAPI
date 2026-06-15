@@ -5,29 +5,43 @@ from .._version import USER_AGENT
 from .macos import roblox_architecture
 
 IMTHEO_BASE_URL = "https://offsets.imtheo.lol"
-MAC_ARM_OFFSETS_URL = "https://offsets.upio.dev/rbxl-macarm-latest.json"
-MAC_INTEL_OFFSETS_URL = "https://offsets.upio.dev/rbxl-macintel-latest.json"
+MACOS_OFFSETS_BASE = "https://offsets.upio.dev/rbxl/macOS"
 REQUEST_HEADERS = {"User-Agent": USER_AGENT}
 
 _macos_roblox_architecture = roblox_architecture
 
 
-def _offsets_url() -> str:
-    if platform.system() != "Darwin":
-        return f"{IMTHEO_BASE_URL}/Offsets.json"
+def _fetch_macos_offsets() -> dict:
+    arch = roblox_architecture()
+    version = requests.get(
+        f"{MACOS_OFFSETS_BASE}/latest.txt",
+        headers=REQUEST_HEADERS,
+    ).text.strip()
+    response = requests.get(
+        f"{MACOS_OFFSETS_BASE}/{arch}/{version}/offsets.json",
+        headers=REQUEST_HEADERS,
+    )
+    return response.json()["Offsets"]
 
-    if roblox_architecture() == "arm64":
-        return MAC_ARM_OFFSETS_URL
 
-    return MAC_INTEL_OFFSETS_URL
+def _load_offsets() -> dict:
+    if platform.system() == "Darwin":
+        try:
+            return _fetch_macos_offsets()
+        except Exception:
+            return {}
 
-# Offsets
-OffsetsRequest = requests.get(_offsets_url(), headers=REQUEST_HEADERS)
+    try:
+        response = requests.get(
+            f"{IMTHEO_BASE_URL}/Offsets.json",
+            headers=REQUEST_HEADERS,
+        )
+        return response.json()["Offsets"]
+    except Exception:
+        return {}
 
-try:
-    Offsets = OffsetsRequest.json()["Offsets"]
-except Exception:
-    Offsets = {}
+
+Offsets = _load_offsets()
 
 # FFlag offsets (lazily loaded)
 _fflag_data = None
