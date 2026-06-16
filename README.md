@@ -1,12 +1,18 @@
 # RobloxMemoryAPI
 
-[A Python library](https://pypi.org/project/robloxmemoryapi/) that is _hopefully stealthy_ and abstracts externally reading and writing memory to get datamodel information from the roblox game client.
-
-This was made by [upio](https://github.com/notpoiu), [mstudio45](https://github.com/mstudio45), and [Master Oogway](https://github.com/ActualMasterOogway) and created for the [Dig Macro](https://github.com/mstudio45/digmacro) project (external mode and not the computer vision mode).
+[A Python library](https://pypi.org/project/robloxmemoryapi/) that is _hopefully stealthy_ and abstracts externally reading and writing memory to get datamodel information from the roblox game client. Initial library was derived from [Dig Macro](https://github.com/mstudio45/digmacro) project which was made by [upio](https://github.com/notpoiu), [mstudio45](https://github.com/mstudio45), and [Master Oogway](https://github.com/ActualMasterOogway).
 
 Join our [Discord](https://discord.gg/FJcJMuze7S) for support and updates.
 
-Offsets are sourced from [imtheo.lol](https://offsets.imtheo.lol/). This project is not affiliated with imtheo.lol in any way.
+## Offsets Origin
+
+1. Windows offsets: [offsets.imtheo.lol](https://offsets.imtheo.lol/)
+
+> Project is not affiliated in any way shape or form with [imtheo.lol](http://imtheo.lol)
+
+2. macOS offsets: [offsets.upio.dev](https://offsets.upio.dev/)
+
+> Inhouse macOS offsets, they are dumped via [a fork of a windows dumper](https://github.com/notpoiu/roblox-dumper-mac)
 
 ## Installation
 
@@ -31,7 +37,6 @@ pip install -e .
 ## Usage
 
 An example script can be found in [example.py](https://raw.githubusercontent.com/notpoiu/RobloxMemoryAPI/refs/heads/main/example.py). If running from the repo, use the editable install above so `import robloxmemoryapi` resolves the `src` package.
-
 
 ## License
 
