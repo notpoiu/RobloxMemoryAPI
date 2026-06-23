@@ -7,6 +7,8 @@ from .datastructures import *
 from .bytecode import decryptor, encryptor
 
 instance_offsets = Offsets["Instance"]
+attributes_map_offsets = Offsets["AttributesMap"]
+attribute_offsets = Offsets["Attribute"]
 basepart_offsets = Offsets["BasePart"]
 primitive_offsets = Offsets["Primitive"]
 camera_offsets = Offsets["Camera"]
@@ -62,6 +64,9 @@ visualengine_offsets = Offsets.get("VisualEngine", {})
 taskscheduler_offsets = Offsets.get("TaskScheduler", {})
 
 ROTATION_MATRIX_FLOATS = 9
+MAX_ATTRIBUTE_COMPONENT_BYTES = 0x4000
+MAX_ATTRIBUTES_PER_LIST = 32
+MAX_ATTRIBUTE_NAME_LENGTH = 128
 
 _ENABLED_OFFSETS_BY_CLASS = {
     "ColorCorrectionEffect": Offsets["ColorCorrectionEffect"],
@@ -3230,45 +3235,86 @@ class RBXInstance:
 
     def GetAttributes(self):
         attributes = {}
-        attribute_container = self.memory_module.read_long(
-            self.raw_address + instance_offsets["AttributeContainer"]
-        )
-        
-        if attribute_container == 0:
+        try:
+            component_map = self.memory_module.read_long(
+                self.raw_address + instance_offsets["ComponentMap"]
+            )
+            if component_map == 0:
+                return attributes
+
+            component_start = self.memory_module.read_long(component_map)
+            component_end = self.memory_module.read_long(component_map + 0x8)
+        except OSError:
             return attributes
 
-        attribute_list = self.memory_module.read_long(
-            attribute_container + instance_offsets["AttributeList"]
-        )
-        
-        if attribute_list == 0:
+        if component_start == 0 or component_end == 0 or component_end <= component_start:
             return attributes
 
-        i = 0
-        while i < 0x400:
-            name_ptr = self.memory_module.read_long(attribute_list + i)
-            if name_ptr == 0:
-                break
+        component_span = min(component_end - component_start, MAX_ATTRIBUTE_COMPONENT_BYTES)
+        attributes_offset = attributes_map_offsets["Attributes"]
+        length_offset = attributes_map_offsets["Length"]
+
+        for component_index in range(0, component_span, 0x10):
+            try:
+                entry = self.memory_module.read_long(component_start + component_index)
+            except OSError:
+                continue
+
+            if entry == 0:
+                continue
+
+            attribute_count = MAX_ATTRIBUTES_PER_LIST
+            try:
+                raw_count = self.memory_module.read_long(entry + length_offset)
+                if 0 < raw_count <= MAX_ATTRIBUTES_PER_LIST:
+                    attribute_count = raw_count
+            except OSError:
+                pass
 
             try:
+                attribute_list = self.memory_module.read_long(entry + attributes_offset)
+            except OSError:
+                continue
+
+            if attribute_list == 0:
+                continue
+
+            self._read_attribute_list(attribute_list, attribute_count, attributes)
+
+        return attributes
+
+    def _read_attribute_list(self, attribute_list, attribute_count, attributes):
+        key_offset = attribute_offsets["Key"]
+        value_offset = attribute_offsets["Value"]
+        stride = attribute_offsets["Size"]
+
+        for index in range(attribute_count):
+            attribute_addr = attribute_list + (index * stride)
+            try:
+                name_ptr = self.memory_module.read_long(attribute_addr + key_offset)
+                if name_ptr == 0:
+                    break
+
                 name = self.memory_module.read_string(name_ptr)
             except OSError:
                 break
-            
-            if not name or name == "invalid_str":
+
+            if (
+                not name
+                or name == "invalid_str"
+                or len(name) > MAX_ATTRIBUTE_NAME_LENGTH
+            ):
                 break
 
-            value_addr = attribute_list + i + instance_offsets["AttributeToValue"]
-            
-            # Read Type Name (Pointer at +0x8 points to TypeDescriptor, Name at TypeDesc + 0x8)
-            type_ptr = self.memory_module.read_long(attribute_list + i + 0x8)
+            value_addr = attribute_addr + value_offset
+            type_ptr = 0
+            try:
+                type_ptr = self.memory_module.read_long(attribute_addr + 0x8)
+            except OSError:
+                pass
+
             type_name = self._read_type_name(type_ptr)
-
             attributes[name] = AttributeValue(value_addr, name, type_name, self.memory_module)
-
-            i += instance_offsets["AttributeToNext"]
-        
-        return attributes
 
 
     def SetAttribute(self, name: str, value):
