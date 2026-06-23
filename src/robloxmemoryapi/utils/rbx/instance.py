@@ -7,6 +7,7 @@ from .datastructures import *
 from .bytecode import decryptor, encryptor
 
 instance_offsets = Offsets["Instance"]
+attribute_offsets = Offsets.get("Attribute", {})
 basepart_offsets = Offsets["BasePart"]
 primitive_offsets = Offsets["Primitive"]
 camera_offsets = Offsets["Camera"]
@@ -3229,6 +3230,93 @@ class RBXInstance:
         return None
 
     def GetAttributes(self):
+        component_map_offsets = (
+            instance_offsets.get("ComponentMap"),
+            attribute_offsets.get("Key"),
+            attribute_offsets.get("Value"),
+            attribute_offsets.get("Size"),
+        )
+        if all(offset is not None for offset in component_map_offsets):
+            return self._get_attributes_from_component_map()
+
+        return self._get_attributes_from_legacy_list()
+
+    def _read_pointer_or_zero(self, address: int) -> int:
+        try:
+            value = self.memory_module.read_long(address)
+        except OSError:
+            return 0
+        return value if value and value > 0x10000 else 0
+
+    def _read_attribute_name(self, address: int):
+        try:
+            name = self.memory_module.read_string(address)
+        except OSError:
+            return None
+
+        if not name or name == "invalid_str" or len(name) > 128:
+            return None
+
+        return name
+
+    def _get_attributes_from_component_map(self):
+        attributes = {}
+        component_map_offset = instance_offsets["ComponentMap"]
+        attribute_key_offset = attribute_offsets.get("Key", 0)
+        attribute_value_offset = attribute_offsets.get("Value", 0)
+        attribute_size = attribute_offsets["Size"]
+
+        if attribute_size <= 0:
+            return attributes
+
+        component = self._read_pointer_or_zero(self.raw_address + component_map_offset)
+        if component == 0:
+            return attributes
+
+        start = self._read_pointer_or_zero(component)
+        end = self._read_pointer_or_zero(component + 0x8)
+        if start == 0 or end == 0 or end <= start:
+            return attributes
+
+        component_span = end - start
+        if component_span > 0x100000:
+            return attributes
+
+        for index in range(0, component_span, 0x10):
+            entry = self._read_pointer_or_zero(start + index)
+            if entry == 0:
+                continue
+
+            listing = self._read_pointer_or_zero(entry + 0x10)
+            if listing == 0:
+                continue
+
+            for step in range(0, attribute_size * 32, attribute_size):
+                name_ptr = self._read_pointer_or_zero(listing + step + attribute_key_offset)
+                if name_ptr == 0:
+                    break
+
+                name = self._read_attribute_name(name_ptr)
+                if name is None:
+                    break
+
+                type_ptr = self._read_pointer_or_zero(listing + step + 0x8)
+                type_name = self._read_type_name(type_ptr)
+                if type_name == "Unknown":
+                    type_ptr = self._read_pointer_or_zero(listing + step + 0x10)
+                    type_name = self._read_type_name(type_ptr)
+
+                value_addr = listing + step + attribute_value_offset
+                attributes[name] = AttributeValue(
+                    value_addr,
+                    name,
+                    type_name,
+                    self.memory_module,
+                )
+
+        return attributes
+
+    def _get_attributes_from_legacy_list(self):
         attributes = {}
         attribute_container = self.memory_module.read_long(
             self.raw_address + instance_offsets["AttributeContainer"]
@@ -4070,25 +4158,65 @@ class AttributeValue:
         self.type_name = type_name
         self.memory_module = memory_module
 
+    def _type_key(self):
+        return (
+            str(self.type_name or "")
+            .lower()
+            .replace("rbx::", "")
+            .replace("reflection::", "")
+            .replace("type", "")
+            .replace(" ", "")
+        )
+
     @property
     def value(self):
-        t = self.type_name.lower()
-        if t == "string":
+        t = self._type_key()
+        if "string" in t:
             return self.memory_module.read_string(self.address)
-        elif t == "bool":
+        elif t in {"bool", "boolean"}:
             return self.memory_module.read_bool(self.address)
-        elif t == "double" or t == "float": 
+        elif t in {"double", "float64", "number"}:
             return self.memory_module.read_double(self.address)
-        elif t == "int" or t == "int64":
+        elif t in {"float", "float32"}:
+            return self.memory_module.read_float(self.address)
+        elif t in {"int", "int32", "integer", "brickcolor", "material"} or "enum" in t:
             return self.memory_module.read_int(self.address)
+        elif t == "int64":
+            return self.memory_module.read_long(self.address)
         elif t == "vector3":
             return Vector3(*self.memory_module.read_floats(self.address, 3))
         elif t == "vector2":
             return Vector2(*self.memory_module.read_floats(self.address, 2))
         elif t == "color3":
             return Color3(*self.memory_module.read_floats(self.address, 3))
-        elif t == "cframe":
-            return self.memory_module.read_floats(self.address, 12)
+        elif t == "udim":
+            return UDim(
+                self.memory_module.read_float(self.address),
+                self.memory_module.read_int(self.address + 0x4),
+            )
+        elif t == "udim2":
+            return UDim2(
+                self.memory_module.read_float(self.address),
+                self.memory_module.read_int(self.address + 0x4),
+                self.memory_module.read_float(self.address + 0x8),
+                self.memory_module.read_int(self.address + 0xC),
+            )
+        elif t == "numberrange":
+            values = self.memory_module.read_floats(self.address, 2)
+            return NumberRange(values[0], values[1])
+        elif t in {"rect", "rect2d"}:
+            values = self.memory_module.read_floats(self.address, 4)
+            return (Vector2(values[0], values[1]), Vector2(values[2], values[3]))
+        elif t in {"cframe", "coordinateframe"}:
+            values = self.memory_module.read_floats(self.address, 12)
+            rotation = values[:ROTATION_MATRIX_FLOATS]
+            position = values[ROTATION_MATRIX_FLOATS:ROTATION_MATRIX_FLOATS + 3]
+            return CFrame(
+                Vector3(*position),
+                Vector3(*get_flat_matrix_column(rotation, 0)),
+                Vector3(*get_flat_matrix_column(rotation, 1)),
+                Vector3(*get_flat_matrix_column(rotation, 2, invert_values=True)),
+            )
         elif "keycode" in t:
             return self.memory_module.read_int(self.address)
         else:
@@ -4096,15 +4224,19 @@ class AttributeValue:
 
     @value.setter
     def value(self, new_value):
-        t = self.type_name.lower()
-        if t == "string":
+        t = self._type_key()
+        if "string" in t:
             self.memory_module.write_string(self.address, str(new_value))
-        elif t == "bool":
+        elif t in {"bool", "boolean"}:
             self.memory_module.write_bool(self.address, bool(new_value))
-        elif t == "double" or t == "float":
+        elif t in {"double", "float64", "number"}:
             self.memory_module.write_double(self.address, float(new_value))
-        elif t == "int" or t == "int64" or "keycode" in t:
+        elif t in {"float", "float32"}:
+            self.memory_module.write_float(self.address, float(new_value))
+        elif t in {"int", "int32", "integer", "brickcolor", "material"} or "keycode" in t or "enum" in t:
             self.memory_module.write_int(self.address, int(new_value))
+        elif t == "int64":
+            self.memory_module.write_long(self.address, int(new_value))
         elif t == "vector3":
             if isinstance(new_value, Vector3):
                 self.memory_module.write_floats(self.address, (new_value.X, new_value.Y, new_value.Z))
@@ -4128,6 +4260,20 @@ class AttributeValue:
                 self.memory_module.write_floats(self.address, new_value)
              else:
                 raise TypeError("Color3 (Vector3/list) value expected")
+        elif t == "udim":
+            value = new_value if isinstance(new_value, UDim) else UDim(*new_value)
+            self.memory_module.write_float(self.address, value.Scale)
+            self.memory_module.write_int(self.address + 0x4, value.Offset)
+        elif t == "udim2":
+            if not isinstance(new_value, UDim2):
+                new_value = UDim2(*new_value)
+            self.memory_module.write_float(self.address, new_value.X.Scale)
+            self.memory_module.write_int(self.address + 0x4, new_value.X.Offset)
+            self.memory_module.write_float(self.address + 0x8, new_value.Y.Scale)
+            self.memory_module.write_int(self.address + 0xC, new_value.Y.Offset)
+        elif t == "numberrange":
+            value = new_value if isinstance(new_value, NumberRange) else NumberRange(*new_value)
+            self.memory_module.write_floats(self.address, (value.Min, value.Max))
         else:
             raise TypeError(f"Setting value for type '{t}' is not supported yet.")
 
