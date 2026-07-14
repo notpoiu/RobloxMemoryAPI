@@ -344,14 +344,16 @@ class CFrame:
     # --- API Methods ---
     def Inverse(self):
         # Rotation inverse is transpose
-        r = Vector3(self.RightVector.X, self.UpVector.X, self.LookVector.X)
-        u = Vector3(self.RightVector.Y, self.UpVector.Y, self.LookVector.Y)
-        l = Vector3(self.RightVector.Z, self.UpVector.Z, self.LookVector.Z)
+        orig_r, orig_u, orig_l = self.RightVector, self.UpVector, self.LookVector
+
+        r = Vector3(orig_r.X, orig_u.X, orig_l.X)
+        u = Vector3(orig_r.Y, orig_u.Y, orig_l.Y)
+        l = Vector3(orig_r.Z, orig_u.Z, orig_l.Z)
 
         inv_pos = Vector3(
-            -self.Position.Dot(r),
-            -self.Position.Dot(u),
-            -self.Position.Dot(l),
+            -self.Position.Dot(orig_r),
+            -self.Position.Dot(orig_u),
+            -self.Position.Dot(orig_l),
         )
 
         return CFrame(inv_pos, r, u, l)
