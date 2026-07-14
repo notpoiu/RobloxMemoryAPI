@@ -8,6 +8,10 @@ find_package(pybind11 CONFIG REQUIRED)
 pybind11_add_module(memory MODULE src/robloxmemoryapi/_native/memory.cpp)
 target_compile_features(memory PRIVATE cxx_std_17)
 
+if(MSVC)
+    target_compile_definitions(memory PRIVATE _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
+endif()
+
 if(WIN32)
     target_link_libraries(memory PRIVATE psapi)
 endif()
